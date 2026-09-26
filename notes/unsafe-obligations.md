@@ -11,8 +11,8 @@ Neither is interesting alone. An `unsafe fn` body is one implicit unsafe block, 
 three unsafe operations carries three separate invariants under a single signature, and the clippy
 lint sees none of them because there is nothing for it to fire on. The second lint removes the
 implicitness; the first then charges each resulting block for its comment. What you get is the
-property this kernel wants: **every unsafe operation sits next to the written invariant that makes
-it sound**, whether or not the enclosing function is unsafe.
+property this kernel wants: every unsafe operation sits next to the written invariant that makes
+it sound, whether or not the enclosing function is unsafe.
 
 Both are in `[workspace.lints]` in the root `Cargo.toml`, which is where lint policy lives and where
 the reasoning for each is recorded.
@@ -22,7 +22,7 @@ the reasoning for each is recorded.
 The milestone was raised expecting a burn-down: 33 `unsafe fn`s, some number of bare operations
 inside them, fix each with an honest SAFETY comment, then turn the lint on.
 
-**The count of violations was zero, before anything was changed.** Measured by adding the lint and
+The count of violations was zero, before anything was changed. Measured by adding the lint and
 running `cargo check` over each of the thirteen configurations `script/lint` builds (the host pass,
 the three side workspaces, the bare-metal pass, and each of the four kernel boot-mode features on
 both ISAs), with every `.rs` file touched first so nothing was served from cache. Plus one more that
@@ -33,7 +33,7 @@ for aarch64 only, which is worth knowing on its own, and is still true.
 the clippy pass with `--cfg kani`. The riscv64 `user` gap is unrelated and still open.)
 
 The reason is the edition. Every one of the 49 packages we own is edition 2024, and
-`unsafe_op_in_unsafe_fn` is **warn-by-default in that edition**, as part of
+`unsafe_op_in_unsafe_fn` is warn-by-default in that edition, as part of
 `rust_2024_compatibility`. `script/lint` runs `-D warnings`. So the rule has been a hard gate here
 since the edition bump, enforced by nothing anybody wrote down.
 
@@ -55,14 +55,14 @@ author picked.
 
 ## The shape of the 33
 
-All 33 `unsafe fn`s are in `kernel/` and `crates/`. **the program packages have none**, which corrects the
+All 33 `unsafe fn`s are in `kernel/` and `crates/`. the program packages have none, which corrects the
 milestone spec's "across `kernel/`, `crates/`, and `user/`".
 
 Twenty-two have at least one explicit `unsafe {}` in the body. Every one of those blocks has a
 SAFETY comment, and clippy reproves it on each run, with the single exception of `inter_process_communication`'s `seed`,
 which is `#[cfg(kani)]` and therefore never compiled by the gate (see BUGS below). The other
-**eleven have no unsafe block at all**, and since the lint is clean, that means their bodies
-contain **no unsafe operation**:
+eleven have no unsafe block at all, and since the lint is clean, that means their bodies
+contain no unsafe operation:
 
 | Site | Why it is `unsafe fn` anyway |
 |---|---|
@@ -70,7 +70,7 @@ contain **no unsafe operation**:
 | `crates/paging/src/lib.rs:323` `assume_no_stale_entry` | the name is the contract: the caller asserts a TLB fact |
 | `crates/paging/src/lib.rs:410` `Mapper::new` | the caller promises `root` is a live table |
 | `crates/user_mode_runtime/src/heap.rs:193` `GlobalAlloc::alloc` | unsafe because the trait method is |
-| `kernel/src/arch/aarch64/mmu.rs:599` `set_ttbr0` | `aarch64-cpu` exposes `TTBR0_EL1.set` as **safe** |
+| `kernel/src/arch/aarch64/mmu.rs:599` `set_ttbr0` | `aarch64-cpu` exposes `TTBR0_EL1.set` as safe |
 | `kernel/src/arch/riscv64/mmu.rs:513` `activate_user` | forwards to `write_satp`, which is a safe fn |
 | `kernel/src/drivers/gic.rs:149` `init` | takes two MMIO virtual addresses on trust |
 | `kernel/src/drivers/ns16550.rs:55` `Ns16550::new` | takes an MMIO base on trust |
@@ -79,10 +79,10 @@ contain **no unsafe operation**:
 | `kernel/src/sync.rs:263` `force_reset_ranks` | breaks lock-order bookkeeping, which is not a memory operation |
 
 For these eleven the lint composition buys nothing, and that is not a defect in them. Their
-unsafety is a **contract about meaning**, not a memory operation the compiler can point at: writing
+unsafety is a contract about meaning, not a memory operation the compiler can point at: writing
 `TTBR0_EL1` is the most consequential thing in the kernel and `aarch64-cpu` hands it over as a safe
-call. The invariant lives in the `# Safety` section of the rustdoc and nowhere else, so **for a
-third of the tree's `unsafe fn`s the doc comment is the only enforcement there is**. Read them
+call. The invariant lives in the `# Safety` section of the rustdoc and nowhere else, so for a
+third of the tree's `unsafe fn`s the doc comment is the only enforcement there is. Read them
 accordingly when you change one.
 
 ## BUGS: three things neither lint can reach
@@ -99,7 +99,7 @@ Four sites in `kernel/`:
 | `kernel/src/arch/aarch64/mmu.rs:843` `switch_user_root` | "the caller passes either a live `AddressSpace`'s composed value or ..." |
 | `kernel/src/arch/riscv64/mmu.rs:48` `write_satp` | "the caller guarantees `satp` names a well-formed Sv39 root" |
 
-The last is also an ISA asymmetry: aarch64's equivalent, `set_ttbr0`, **is** an `unsafe fn`, so the
+The last is also an ISA asymmetry: aarch64's equivalent, `set_ttbr0`, is an `unsafe fn`, so the
 same register write is a contract on one architecture and an ordinary call on the other. Not fixed
 in milestone 82, deliberately: turning these four into `unsafe fn`s puts an unsafe block (and a real
 SAFETY comment) at every call site including the context switch, which is a change to the kernel's
@@ -114,12 +114,12 @@ fn that would be unsound if the sentence were false.
 records what the gate found. `cfg(kani)` is set by the model checker and by nothing else, so
 `script/lint` never compiled those modules and neither lint could fire in them. The tree has 14
 `unsafe {}` blocks under `#[cfg(kani)]`, in `crates/intrusive_fifo` and `crates/inter_process_communication`. `intrusive_fifo`'s two
-both carry SAFETY comments. **Eleven of `inter_process_communication`'s twelve do not**, and the gate had never said so. A
+both carry SAFETY comments. Eleven of `inter_process_communication`'s twelve do not, and the gate had never said so. A
 real fix is a gate rather than a pass of comments (a clippy invocation with `--cfg kani`, or
 `-D warnings` on the `script/verify` build); adding the comments alone leaves nothing to stop the
 next harness from skipping them.
 
-**3. Neither lint reads the comment.** `undocumented_unsafe_blocks` checks that a comment exists,
+3. Neither lint reads the comment. `undocumented_unsafe_blocks` checks that a comment exists,
 not that it is true, which is why DECISIONS §61 carries a BUGS note about a generated pass that
 produced a comment false at its first site. Three comments in the tree are verbatim copies of each
 other ("this function's own `# Safety` contract is exactly the one this call needs; it forwards, it
@@ -134,20 +134,20 @@ that there was nothing left to argue about.
 
 | | clippy with `--cfg kani` | `-D warnings` on `script/verify` |
 |---|---|---|
-| Undocumented `unsafe` it finds | **13** | **0** |
-| Other warnings it finds | **13** | 0 |
+| Undocumented `unsafe` it finds | 13 | 0 |
+| Other warnings it finds | 13 | 0 |
 | Needs Kani installed | no | yes |
 | Runs | every pull request, ~1 s | when someone runs the proofs, ~20 min |
 | Compiles the harnesses truthfully | no, against a shim | yes, by definition |
 
-**Why the second column is zero, which is the whole decision.** `cargo kani` drives a *rustc*, not a
+Why the second column is zero, which is the whole decision. `cargo kani` drives a *rustc*, not a
 clippy-driver. `undocumented_unsafe_blocks` is a `clippy::` lint and simply does not exist in that
 compiler, so no amount of `-D warnings` can make it fire. This was measured rather than reasoned
 about: `RUSTFLAGS="-D warnings" cargo kani -p ipc --only-codegen` compiles clean while thirteen
 undocumented unsafe sites sit in the file. (That is the command as it was run, when the crate was
 `ipc`; it is `-p inter_process_communication` since the 2026-09-19 rename.) The same command
 *does* fail on a deliberately added unused variable, so `RUSTFLAGS` reaches Kani and the gate would
-be real for **rustc** lints (`unsafe_op_in_unsafe_fn` among them). It is only the clippy half,
+be real for rustc lints (`unsafe_op_in_unsafe_fn` among them). It is only the clippy half,
 which is the half this milestone is about, that it cannot reach.
 
 So `script/lint` grew a fourteenth clippy configuration. The tree's `#[cfg(kani)]` modules are all in
@@ -164,36 +164,36 @@ cargo clippy --workspace --exclude kernel --exclude user --exclude user_mode_run
 without the crate that provides them rustc stops at `use of unresolved module or unlinked crate
 kani`. `helpers/kani-lint-shim/` is that crate, built by `script/lint` with two plain `rustc`
 invocations before the pass runs. The surface it has to cover is small, which is what makes this
-cheap: across 27 packages <!--count:harness-crates--> and 188 harnesses <!--count:kani-harnesses-->
-the tree uses exactly **five** Kani items, `any`, `proof` (188) <!--count:kani-harnesses-->,
+cheap: across 27 packages <!--count:harness-crates--> and 193 harnesses <!--count:kani-harnesses-->
+the tree uses exactly five Kani items, `any`, `proof` (193) <!--count:kani-harnesses-->,
 `assume`, `unwind` and `cover!`, and no `Arbitrary` derive, no contracts, no
 `any_where`. A sixth, `stub`, appears only in `kernel`, which this pass excludes, so the shim
-lacks it. The claim is that the surface is **five items**, which is what the shim has to cover, and that
+lacks it. The claim is that the surface is five items, which is what the shim has to cover, and that
 does not move when a harness is added.
 
-**It is two crates because an attribute macro can only come from a proc-macro crate.** The
+It is two crates because an attribute macro can only come from a proc-macro crate. The
 one-crate route was tried and does not work: registering `kani` as a tool namespace with
 `-Zcrate-attr=register_tool(kani)` loses to the extern crate the same code needs for `kani::any`, and
 rustc reports `cannot find proof in kani`.
 
-**It is deliberately looser than Kani in one place.** The real `any` requires `T: Arbitrary`; the
+It is deliberately looser than Kani in one place. The real `any` requires `T: Arbitrary`; the
 shim's takes any `T`. A lint gate must never reject code the model checker accepts, and the error
 that remains possible (code only the *shim* accepts) fails under `cargo kani`, loudly, where anybody
 would look.
 
-**A clean pass here is not a proof**, and the shim is not a second implementation of Kani. It has no
+A clean pass here is not a proof, and the shim is not a second implementation of Kani. It has no
 semantics at all: `any` returns nothing, `assume` constrains nothing. `script/verify` remains the
 thing that proves.
 
-**When a harness reaches for Kani API the shim lacks, the lint pass breaks and the proof does not.**
+When a harness reaches for Kani API the shim lacks, the lint pass breaks and the proof does not.
 The failure is a compile error naming the missing item, and the fix is to add the item, not to drop
 the pass.
 
 ### What it found, and the correction to the count above
 
-**26 warnings in 9 crates**, none of which any gate had ever printed.
+26 warnings in 9 crates, none of which any gate had ever printed.
 
-Thirteen are the unsafe half, and the number in BUGS item 2 was **11, which was an undercount**. The
+Thirteen are the unsafe half, and the number in BUGS item 2 was 11, which was an undercount. The
 survey enumerated `unsafe {}` blocks; `undocumented_unsafe_blocks` also fires on an `unsafe impl`,
 and there are two of those under `#[cfg(kani)]`, one in each crate, both undocumented. Counting by
 hand found the population the lint's own rule would have found for free, which is the argument for
@@ -208,7 +208,7 @@ The other thirteen are ordinary clippy, in crates nobody suspected: `doc_markdow
 `manual_range_contains` (4), `manual_let_else` (2), `len_zero` (2), `needless_range_loop` (1),
 `assertions_on_constants` (1), across `asid`, `calendar`, `credential_protocol`, `nifefs`, `dma_validator`,
 `paging`, `pci` and `generational_table`. That half is the answer to "does this find anything besides unsafe",
-and it is yes: **half of what the pass finds has nothing to do with unsafe at all.** One of them,
+and it is yes: half of what the pass finds has nothing to do with unsafe at all. One of them,
 `dma_validator`'s `assert!(RING_END <= RING_BLOCK)` over two constants, became a `const {}` assertion
 and so moved from a proof-time check to a compile-time one.
 
@@ -222,9 +222,9 @@ comment exists, never that it is true, so a false comment passes the gate and mi
 now believes somebody checked. The eleven are worth reading as an example of the alternative.
 
 Every `unsafe` call in `inter_process_communication`'s proof module discharges the same two obligations, and they are stated
-once in the module's own doc rather than eleven times: **the nodes outlive the endpoint** (declared
-in one `let` before `e`, and locals drop in reverse declaration order) and **no node is on a queue
-when it is passed** (each `N::new()` starts with a null link, and no harness hands the same node to
+once in the module's own doc rather than eleven times: the nodes outlive the endpoint (declared
+in one `let` before `e`, and locals drop in reverse declaration order) and no node is on a queue
+when it is passed (each `N::new()` starts with a null link, and no harness hands the same node to
 two calls). The `#[cfg(test)]` module beside it had already chosen exactly this shape, which is why
 its twenty-odd sites read as one argument and not twenty.
 
@@ -247,7 +247,7 @@ discharged an obligation onto "the caller" while their signatures imposed it on 
 lints were satisfied throughout, because there is no `unsafe fn` and no undocumented block for
 either to fire on.
 
-**Three converted, one did not, and the difference is not how strong the obligation is.** It is
+Three converted, one did not, and the difference is not how strong the obligation is. It is
 whether anything closes the set of callers.
 
 | Site | Decided | Why |
@@ -260,20 +260,20 @@ whether anything closes the set of callers.
 ### What makes an obligation binding, which is the whole distinction
 
 `sched.rs`'s `endpoint_of` is the contrast that settles it. Its comment says the access is
-"serialized by SCHED, which every caller holds", which reads exactly like the four. **It binds**,
+"serialized by SCHED, which every caller holds", which reads exactly like the four. It binds,
 because the parameter is `&Scheduler` and the only way to obtain one is through the lock guard. The
 sentence restates a fact the type already enforces.
 
 `switch_user_root(ttbr: u64)` says something that sounds similar and enforces nothing, because any
 `u64` will do. So the question to ask of a SAFETY comment on a safe fn is not "does it mention the
-caller" but **"could the parameter have been produced without meeting this?"** When the answer is no,
+caller" but "could the parameter have been produced without meeting this?" When the answer is no,
 the comment is documentation of a type-level guarantee. When it is yes, the comment is the only thing
 there, and `unsafe fn` is what puts it in front of somebody.
 
 `virtio::pread` is the third case, and it is why the rule is not "convert everything a type does not
 guarantee". Nothing about `phys: u64` enforces the invariant, but `pread` is private and every call
 site is in one `impl` block passing a field of `Transport::Pci` that `pci.rs` resolved from a mapped
-BAR. **A module invariant is a real way to be sound**, and the compiler is what makes it one.
+BAR. A module invariant is a real way to be sound, and the compiler is what makes it one.
 Converting would have put twenty `unsafe` blocks in a single file, each restating one sentence, which
 is the ritual the milestone block named as the thing to avoid, and it would have made nothing
 checkable: an `unsafe fn` whose contract nothing verifies is still a contract nothing verifies.
@@ -284,10 +284,10 @@ The obvious repair for `switch_user_root` is a `#[repr(transparent)]` newtype th
 `AddressSpace::ttbr0` and `reserved_root` can mint, which would make the function honestly safe
 rather than merely honestly documented. It does not work, and the reason is worth keeping:
 
-**The dangerous half of the obligation is liveness, and a `Copy` wrapper over a `u64` launders
-exactly that.** An `AddressSpace` can be dropped and its frames recycled while a copy of its composed
+The dangerous half of the obligation is liveness, and a `Copy` wrapper over a `u64` launders
+exactly that. An `AddressSpace` can be dropped and its frames recycled while a copy of its composed
 value lives on. A borrow would carry liveness, and the scheduler cannot hold one: `sched::switch`
-reads the root out from under the `SCHED` lock **on purpose**, so the lock is released before the
+reads the root out from under the `SCHED` lock on purpose, so the lock is released before the
 context switch, and a lifetime tied to the `AddressSpace` cannot survive that drop. The obligation
 stays a sentence. Both call sites now carry the argument that makes it true (the incoming thread is
 `Running` with `on_cpu` set before the lock drops, so nothing can reap it across the gap) rather than
@@ -298,28 +298,28 @@ a restatement of the contract.
 Milestone 82 found its four by looking for the word "caller". Two more had the identical defect and
 did not use the word:
 
-- **`virtio::pwrite`** says `// SAFETY: as above.` A comment by reference inherits the defect and
+- `virtio::pwrite` says `// SAFETY: as above.` A comment by reference inherits the defect and
   none of the text a grep can match.
-- **`stack::high_water`** says "a mapped stack region", in the passive voice. It names the obligation
+- `stack::high_water` says "a mapped stack region", in the passive voice. It names the obligation
   without naming anybody who owes it, which is the same defect stated in a way that reads like a
   fact.
 
-**Passive voice and comment-by-reference are the two blind spots of any text search over SAFETY
-comments**, and they are worth knowing before anyone trusts a count produced that way.
+Passive voice and comment-by-reference are the two blind spots of any text search over SAFETY
+comments, and they are worth knowing before anyone trusts a count produced that way.
 
 Two counts in the survey above are also wrong, from the same cause on the other side:
 
-- "**33 `unsafe fn`s**" is 33 in `kernel/` and `crates/`, not in the tree. The tree had **46** before
-  this milestone and **51** after it: `redoxfs_server/` holds 9, `tools/redoxfs_host/` 2, `user/src/` 2.
-- "**`user/src/` has none**" is wrong. `fixtures/src/c_shim.rs` has two, `malloc` and `free`, and a regex
+- "33 `unsafe fn`s" is 33 in `kernel/` and `crates/`, not in the tree. The tree had 46 before
+  this milestone and 51 after it: `redoxfs_server/` holds 9, `tools/redoxfs_host/` 2, `user/src/` 2.
+- "`user/src/` has none" is wrong. `fixtures/src/c_shim.rs` has two, `malloc` and `free`, and a regex
   that does not allow `extern "C"` between `unsafe` and `fn` misses both. They are the C ABI's
   contract and are correctly documented; only the count was wrong.
 
 ### The bug this found, which is the argument in one line
 
-**Taking `pread`'s comment seriously found a path that made it false.** It claimed every address
-reaching it was inside a device-mapped BAR. `Transport::Pci`'s `notify_addr[q]` is **zero until
-`setup_queue` resolves it**, and the `NOTIFY` syscall checked only that the queue number was under
+Taking `pread`'s comment seriously found a path that made it false. It claimed every address
+reaching it was inside a device-mapped BAR. `Transport::Pci`'s `notify_addr[q]` is zero until
+`setup_queue` resolves it, and the `NOTIFY` syscall checked only that the queue number was under
 `MAX_QUEUES`. So a userspace driver holding a virtio capability could ring a queue it had never set
 up, and the kernel wrote a `u16` through `phys_to_virt(0)`: a kernel store, inside no BAR, at a
 moment the driver chose. `virtio::notify` now refuses that queue via `Transport::is_doorbell_ready`,
@@ -342,58 +342,58 @@ to resolve. That is why the defect was invisible from the syscall and only appea
 There is no `invoke` in the function. The comment was pasted from `mr`/`mw` a few lines below and
 describes a different operation, on a different mechanism, with a different contract. Its five
 siblings (`r8`, `r16`, `r32`, `w8`, `write_desc`) carry the correct DMA-page sentence, so the defect
-is one line in a block of six. **`undocumented_unsafe_blocks` was green on it the whole time**,
+is one line in a block of six. `undocumented_unsafe_blocks` was green on it the whole time,
 because the property it checks is that a comment exists. DECISIONS §61 already carries a BUGS note
 predicting this; this is the in-tree instance.
 
 ### What is not mechanically checkable, stated plainly
 
-**The milestone's headline property has no gate, and should not be given one.** Whether a SAFETY
+The milestone's headline property has no gate, and should not be given one. Whether a SAFETY
 comment binds anybody is not a syntactic question, and the measurements say so rather than the
 intuition:
 
-- The tree has **937 `// SAFETY:` comment blocks**. **871** are inside a safe fn, which is the normal
+- The tree has 937 `// SAFETY:` comment blocks. 871 are inside a safe fn, which is the normal
   and correct case: an `unsafe` block in a safe fn whose soundness is discharged locally is what
   most correct Rust looks like.
-- **36** of those mention a caller. Three are artifacts of this milestone's own prose quoting the
-  string `// SAFETY:`, so **33** are real, and **19 of the 33 are legitimate** (the calling *thread*,
+- 36 of those mention a caller. Three are artifacts of this milestone's own prose quoting the
+  string `// SAFETY:`, so 33 are real, and 19 of the 33 are legitimate (the calling *thread*,
   the calling *process*, an IPC caller, or a fact the parameter type already enforces). A gate on
   "SAFETY plus caller in a safe fn" would be wrong more often than right.
 - And it would have missed `pwrite` and `high_water`, which are two of the six real ones, for the
   reasons above. A check that is both noisy and incomplete is a nag.
 
 An allowlist ratchet would fix the noise and not the incompleteness, at the cost of 19 entries that
-each need a reason written and reviewed. Not worth it against a defect class this small. **This one
-is a review discipline**: when you read a SAFETY comment on a safe fn, ask whether the parameter
+each need a reason written and reviewed. Not worth it against a defect class this small. This one
+is a review discipline: when you read a SAFETY comment on a safe fn, ask whether the parameter
 could have been produced without meeting it.
 
 ### What is mechanically checkable, and shipped
 
-A different property, adjacent to the milestone rather than the milestone itself: **every `unsafe fn`
-states its contract in a `# Safety` section.** `script/lint` gained that check.
+A different property, adjacent to the milestone rather than the milestone itself: every `unsafe fn`
+states its contract in a `# Safety` section. `script/lint` gained that check.
 
 It earns its place because of the shape measured in the survey above: a third of this tree's
-`unsafe fn`s contain **no unsafe operation at all**, so neither unsafe lint has anything to fire on
+`unsafe fn`s contain no unsafe operation at all, so neither unsafe lint has anything to fire on
 and the rustdoc section is the only enforcement there is. Nothing was checking that it existed.
 `clippy::missing_safety_doc` is already on via `-D warnings` and does not cover it: that lint fires
-only on an **exported** function, and the interesting ones here (`set_ttbr0`, `write_satp`) are
+only on an exported function, and the interesting ones here (`set_ttbr0`, `write_satp`) are
 private to their module.
 
-**It found one violation on its first run**, `redoxfs_server`'s `file_page`, whose contract was written
+It found one violation on its first run, `redoxfs_server`'s `file_page`, whose contract was written
 but spelled `SAFETY:` in the doc comment instead of `# Safety`, so rustdoc rendered it as ordinary
 prose and no tool recognised it as the contract.
 
-Two things it deliberately does not do. **It excludes trait-impl methods**, because `GlobalAlloc`'s
+Two things it deliberately does not do. It excludes trait-impl methods, because `GlobalAlloc`'s
 `alloc` and RedoxFS's `Disk::read_at` are `unsafe fn` by the trait's declaration and the contract
 belongs to the trait; twelve of the tree's 51 are that case, and without the exclusion the check is
-twelve false positives out of thirteen. And **it checks that a contract is written, never that it is
-true**, which is the same limit `undocumented_unsafe_blocks` has one level down. It is a low bar, and
+twelve false positives out of thirteen. And it checks that a contract is written, never that it is
+true, which is the same limit `undocumented_unsafe_blocks` has one level down. It is a low bar, and
 it is the bar that was missing.
 
 ### The same defect outside `kernel/`, which is somebody else's lane
 
 The milestone scoped to the four sites in `kernel/`. The survey pattern, run over the whole tree,
-finds **14 more** of the same shape, and they are listed here so the finding lives somewhere a person
+finds 14 more of the same shape, and they are listed here so the finding lives somewhere a person
 reads rather than in a report:
 
 | Site | The comment's claim |
@@ -415,8 +415,8 @@ one is in the vendored std overlay, which most gates exclude on purpose.
 
 ## The census, and which numbers have a direction (milestone 134)
 
-Everything above is about whether an obligation is *written*. This section is about **how much
-unsafe there is and which way it should go**, which calef raised on 2026-08-18 in one question:
+Everything above is about whether an obligation is *written*. This section is about how much
+unsafe there is and which way it should go, which calef raised on 2026-08-18 in one question:
 *"How much unsafe code is there in a code base? Is that something we should be monitoring and
 driving in a particular direction over time?"*
 
@@ -436,7 +436,7 @@ than a boundary and the register's BUGS says so.
 |---|---|---|---|---|---|---|---|
 | `unsafe {}` outside `kernel/src/arch/` | 171 | 426 | 728 | 763 | 747 | 777 | 698 |
 | code lines outside it | 7,508 | 19,223 | 58,351 | 64,452 | 80,359 | 85,530 | 88,596 |
-| **blocks per 10,000 lines** | 227.8 | 221.6 | 124.8 | 118.4 | 93.0 | **90.8** | **78.8** |
+| blocks per 10,000 lines | 227.8 | 221.6 | 124.8 | 118.4 | 93.0 | 90.8 | 78.8 |
 | `unsafe {}` inside `kernel/src/arch/` | 34 | 102 | 128 | 134 | 139 | 141 | 248 |
 | `unsafe impl Send`/`Sync` | 7 | 12 | 15 | 15 | 17 | 20 | 23 |
 
@@ -447,7 +447,7 @@ density's whole point. And `arch/` nearly doubled between the last two columns (
 anything drifting: milestone 161's `x86_64` port is a third architecture's worth of assembly,
 system registers and MMU code, which is exactly the population this measurement excludes on purpose.
 
-**The 2026-08-23 column mixes two different things and the density is what separates them.** The
+The 2026-08-23 column mixes two different things and the density is what separates them. The
 raw count outside `arch/` rose by 30 (747 to 777) between 2026-08-18 and this lane starting,
 because five days of unrelated tree growth (other milestones) added unsafe at roughly the tree's
 own rate. Against that growth, milestone 139 alone removed 22 net blocks (24 hand-rolled
@@ -460,32 +460,32 @@ unrelated growth, and the reduction alone took it to 90.8. See below for the clu
 (`script/lint` prints the density as an integer, truncated: 92 rather than 93.0. Truncated on
 purpose, so a ceiling can never fail a tree that sits exactly on it.)
 
-**The absolute count more than quadrupled and the density more than halved, falling at every
-sample.** Both facts are true and only the second one is about this kernel's soundness: the first is
+The absolute count more than quadrupled and the density more than halved, falling at every
+sample. Both facts are true and only the second one is about this kernel's soundness: the first is
 a system being built. That is the whole reason the gate below holds a ratio rather than a count.
 
 Nothing was measuring either. The clearest evidence is a single commit two days before this was
 written: `d5a969a2`, "user_rt: one trap instruction, not forty-eight" (the crate is
 `user_mode_runtime` since 2026-09-13; a commit subject keeps the spelling it was written under),
-took the count from **863 to
-769 in one change**, 10.9% of all non-arch unsafe, by lifting a panic handler that 48 binaries had
+took the count from 863 to
+769 in one change, 10.9% of all non-arch unsafe, by lifting a panic handler that 48 binaries had
 each inlined with two `unsafe` blocks and two SAFETY comments. Its commit message argues from §61
 that a SAFETY comment is an assertion and not a formality, and it is exactly right; what it could
 not say, because no instrument existed, is that the tree had been asserting that particular
-invariant **96 times** and now asserts it once.
+invariant 96 times and now asserts it once.
 
 ### What each number is held to, and why the answers differ
 
-**At most 88** <!--count-at-most:unsafe-density-outside-arch--> unsafe blocks per 10,000 lines
+At most 88 <!--count-at-most:unsafe-density-outside-arch--> unsafe blocks per 10,000 lines
 outside `kernel/src/arch/`. The direction is down, because unsafe outside `arch/` is not paying
 for hardware access: it is a raw syscall, a shared page, or a hand-rolled data structure, and each
 of those has a safe wrapper somebody could write. The ceiling is written at a threshold the tree
-crossed **the day before this was written** rather than at slack: every sample before 2026-08-18
+crossed the day before this was written rather than at slack: every sample before 2026-08-18
 would have failed it, 2026-08-16 included at 111.7. That is what makes it a ratchet instead of
 decoration.
 
 **Lowered from 100 to 97 by milestone 139 (2026-08-23), cinching the ratchet behind a real
-reduction rather than the tree's own growth.** Seven userspace programs
+reduction rather than the tree's own growth. Seven userspace programs
 (`entropy`, `keyboard_driver`, `net_transport`, `multicast_dns_responder`, `socket_test_client`, `smb_server`, `ntp`)
 each hand-rolled the same `r8`/`w8`/`r16`/`w16`/`r32` volatile-access functions over a DMA page or
 a shared IPC frame, one hand-written `// SAFETY:` comment per function, asserting one invariant
@@ -495,13 +495,13 @@ use") without anyone lifting it out. `user_mode_runtime::mapped_window::MappedWi
 holds that invariant once, at construction, and turns every access into a bounds-checked call with
 no unsafe at the call site.
 
-**Measured precisely from the diff, not from a before/after tree census** (which the 2026-08-23
-column above already shows gets contaminated by unrelated concurrent growth): **32 `unsafe {`
-blocks removed across the seven programs, 11 added** (9 window constructions -- one per program,
+Measured precisely from the diff, not from a before/after tree census (which the 2026-08-23
+column above already shows gets contaminated by unrelated concurrent growth): 32 `unsafe {`
+blocks removed across the seven programs, 11 added (9 window constructions -- one per program,
 except `smb_server`, which needs two: one for its boot-wired FS channel at `FS_VA`, sized to
 `fs::TRANSFER_MAX` rather than one page, and one for its runtime-mapped socket frame at
 `FRAME_VA` -- plus the 2 generic `read`/`write` methods inside `MappedWindow` itself, doc-comment
-examples excluded since the census strips comments). **Net -21.** `smb_server.rs` alone is flat
+examples excluded since the census strips comments). Net -21. `smb_server.rs` alone is flat
 (11 unsafe blocks before and after: two hand-rolled functions traded for two window
 constructions), which is still a real reduction by this milestone's own test -- criterion 2, a
 raw-pointer assertion replaced by a typed, bounds-checked abstraction -- even though it does not
@@ -509,8 +509,8 @@ move that one file's own block count. The checked bound is a genuine soundness i
 hand-written copies never had: a wrong offset used to be a silent out-of-bounds volatile access,
 and is now a panic naming the access. Full account in `design/roadmap/139-drive-down-unsafe.md`.
 
-**The new ceiling keeps 7 points of headroom above the density this reduction actually reached
-(90.8, truncated to 90), the same absolute headroom the original 100-vs-93 ceiling carried**,
+The new ceiling keeps 7 points of headroom above the density this reduction actually reached
+(90.8, truncated to 90), the same absolute headroom the original 100-vs-93 ceiling carried,
 rather than being written at the exact new value the way `unsafe-thread-safety-claims` and
 `agents-md-lines` are. Those two are populations small enough, or additions rare enough, that every
 single one deserves a stop; this measurement moved on 38 non-merge commits in 14 days before it was
@@ -533,8 +533,8 @@ asserting the identical invariant ("`svc`/`ecall` traps to the kernel, which val
 acting") at a register layout that differed only in which of the five return words the caller
 happened to read: twelve hand-written copies of one assertion, the exact §94 shape. `invoke5` (new,
 private to the crate) holds the trap once per architecture; every caller above it, including
-`invoke` itself, is now a safe wrapper with no `asm!` of its own. **14 `unsafe {` blocks removed, 9
-added, net -5**, in `crates/user_mode_runtime/src/lib.rs` alone.
+`invoke` itself, is now a safe wrapper with no `asm!` of its own. 14 `unsafe {` blocks removed, 9
+added, net -5, in `crates/user_mode_runtime/src/lib.rs` alone.
 
 *The broader `read_volatile`/`write_volatile` sweep round 1's BUGS section asked for.* Grepping
 directly for `read_volatile`/`write_volatile` (rather than by the `r8`/`w8`/`r16` naming convention
@@ -545,12 +545,12 @@ loop over the page shared with the FS server (`fs_nameset_caretaker` carries a s
 window for its name set; `fs_test_client` carries five such helpers over one window sized to
 `fs::TRANSFER_MAX`), every one asserting "this VA is a mapped page of this size" by hand, near
 word-for-word the same comment. Migrated onto the existing `user_mode_runtime::mapped_window::MappedWindow`
-(round 1's type, reused rather than duplicated) the same way the DMA-page cluster was. **21 removed,
-10 added, net -11** across the nine files. `fs_subtree_caretaker.rs` alone is flat (1 before, 1
+(round 1's type, reused rather than duplicated) the same way the DMA-page cluster was. 21 removed,
+10 added, net -11 across the nine files. `fs_subtree_caretaker.rs` alone is flat (1 before, 1
 after: one hand-rolled function traded for one window construction), the same "still real by
 criterion 2" case `smb_server.rs` was in round 1.
 
-**Combined: 35 `unsafe {` blocks removed, 19 added, net -16**, all measured from the diff against
+Combined: 35 `unsafe {` blocks removed, 19 added, net -16, all measured from the diff against
 base commit `a269403e`. The tree-wide census confirms it cleanly for once, because nothing else
 landed on this branch in between: 792 blocks outside `arch/` at the base commit, 776 in the working
 tree after, exactly -16. Density moved only 90 to 89 (truncated), because the reduction also removed
@@ -571,7 +571,7 @@ declarations) and still a real reduction by criterion 2, the same "typed abstrac
 pointer arithmetic" case `smb_server.rs` and `fs_subtree_caretaker.rs` were. The job frame collapses
 for real: `jf_load`/`jf_store` were two functions, each with its own `// SAFETY:` comment, called
 eight times combined across `spawn_interruptible` and `watch`; one `MappedWindow` constructed once,
-right after the frame is mapped, replaced both. **4 `unsafe {` blocks removed, 3 added, net -1**, in
+right after the frame is mapped, replaced both. 4 `unsafe {` blocks removed, 3 added, net -1, in
 `components/src/swish.rs` alone.
 
 *`disk_surveyor.rs`'s `ROSTER_VA`.* A single shared `u64` flag at a fixed VA the program maps
@@ -581,8 +581,8 @@ second read must fault), and written once in [`ROLE_PROBE`] (refused by the kern
 read-only). The two deliberate-fault sites are the one honest exception recorded at the call site:
 `MappedWindow`'s own bounds check cannot catch either fault (offset 0 is inside the declared
 window both times), so the real hardware fault happens inside `read`/`write` exactly where the
-hand-written version made it, and the test's behaviour is unchanged. **3 `unsafe {` blocks removed,
-2 added, net -1**, in `components/src/disk_surveyor.rs` alone.
+hand-written version made it, and the test's behaviour is unchanged. 3 `unsafe {` blocks removed,
+2 added, net -1, in `components/src/disk_surveyor.rs` alone.
 
 *`net_stack.rs`'s `a_r8`/`a_r16`/`a_w16`/`a_w8` cluster.* The exact naming variant
 `user_mode_runtime::mapped_window`'s own doc comment already named as a shape round 1's search should have
@@ -600,14 +600,14 @@ the four functions' bodies. Every call site downstream (`read_dst`, `udp_sendto`
 a raw VA, so the restructuring reaches the caller side rather than stopping at a wrapper that still
 took an absolute address. One further site collapsed for the same reason though it was never named
 `a_w8`: `sock_recv`'s payload-write loop had its own hand-rolled `write_volatile`, identical in
-shape, folded into the same window. **5 `unsafe {` blocks removed (the four functions' bodies plus
-the one hand-rolled loop), 1 added (the window construction in `OP_ATTACH_FRAME`), net -4**, in
+shape, folded into the same window. 5 `unsafe {` blocks removed (the four functions' bodies plus
+the one hand-rolled loop), 1 added (the window construction in `OP_ATTACH_FRAME`), net -4, in
 `components/src/net_stack.rs` alone. `script/test`'s aarch64 and riscv64 net suites (DHCP, UDP, TCP
 connect/accept/listen, the mDNS responder) are the load-bearing evidence for this one: the
 restructuring touches per-socket lifecycle state, exactly the kind of change where a mistake shows
 up as a flaky network test rather than a compile error.
 
-**Combined round 3: 12 `unsafe {` blocks removed, 6 added, net -6**, measured from the diff against
+Combined round 3: 12 `unsafe {` blocks removed, 6 added, net -6, measured from the diff against
 this round's own base commit (`f731894d`), the same discipline every round has used. Uncontaminated
 this time as well: nothing else landed on this branch between the base commit and this reduction, so
 the tree-wide census confirms it exactly: 776 blocks outside `arch/` at the base commit (89 per
@@ -615,7 +615,7 @@ the tree-wide census confirms it exactly: 776 blocks outside `arch/` at the base
 moved 89 to 88 (truncated); the line count moved by only 15 (net, mostly comments explaining the new
 windows), so the denominator barely moved this round, unlike round 2's `asm!`-collapse.
 
-**The ratchet, cinched again**: ceiling lowered from 96 to 95, keeping the same 7-point headroom the
+The ratchet, cinched again: ceiling lowered from 96 to 95, keeping the same 7-point headroom the
 100-vs-93, 97-vs-90 and 96-vs-89 ceilings all carried, now above the 88 this round reached.
 
 **Lowered again, 95 to 94, by milestone 139 round 4 (2026-08-24).** Round 3's own handoff named the
@@ -623,8 +623,8 @@ question precisely: does `MappedWindow`'s bounds check cost enough at the bounde
 framebuffer/graphics code actually sees (2,048-8,192 accesses per one-shot test, or a
 keystroke-driven repaint) to matter, measured rather than reasoned about. `script/bench` (icount,
 both ISAs), a temporary comparison loop over a page-sized buffer, one raw `write_volatile` against
-one loop performing `MappedWindow::check`'s own arithmetic first: the check costs **4 icount
-ticks/access on aarch64** (8 to 12) and **~0.6 on riscv64** (1.4 to 2.0), flat across 56, 2,048 and
+one loop performing `MappedWindow::check`'s own arithmetic first: the check costs 4 icount
+ticks/access on aarch64 (8 to 12) and ~0.6 on riscv64 (1.4 to 2.0), flat across 56, 2,048 and
 8,192 accesses. Total overhead at the largest volume, 8,192, is ~29,000 aarch64 ticks -- under 30
 `ipc_rtt` round trips (1,017 ticks each), inside a one-shot test that already pays several of those
 round trips plus, for `display.rs`, a real device DMA completion at ~200 us wall clock. Negligible on
@@ -650,11 +650,11 @@ covers `surface_pixel` for free and bounds-checks the few dozen other offsets to
 `_start` and threaded through `Wiring` rather than declared as a `const`, for the same per-client
 reason as `window.rs`).
 
-**Measured precisely from the diff against this round's own base commit (`757562a3`)**: `painter.rs`
+Measured precisely from the diff against this round's own base commit (`757562a3`): `painter.rs`
 2 removed, 1 added (net -1); `window.rs` 2 removed, 1 added (net -1); `display.rs` 2 removed, 1 added
 (net -1); `display_terminal.rs` 1 removed, 1 added (net 0, still a real reduction by criterion 2, the
 same "typed abstraction replaces raw pointer arithmetic" case `swish.rs`'s terminal pair and
-`smb_server.rs` were). **Combined: 7 `unsafe {` blocks removed, 4 added, net -3.** Uncontaminated:
+`smb_server.rs` were). Combined: 7 `unsafe {` blocks removed, 4 added, net -3. Uncontaminated:
 nothing else landed on this branch between the base commit and this reduction, so the tree-wide
 census confirms it exactly: 782 blocks outside `arch/` at the base commit (88 per 10,000, matching
 round 3's own final reading despite 12 blocks of unrelated tree growth landing in between, 770 to
@@ -663,7 +663,7 @@ working tree after, exactly -3. Density moved 88 to 87 (truncated); the line cou
 (mostly the new `SAFETY` comments explaining each window's invariant), so the denominator barely
 moved this round, like round 3's.
 
-**The ratchet, cinched a fourth time**: ceiling lowered from 95 to 94, keeping the same 7-point
+The ratchet, cinched a fourth time: ceiling lowered from 95 to 94, keeping the same 7-point
 headroom the 100-vs-93, 97-vs-90, 96-vs-89 and 95-vs-88 ceilings all carried, now above the 87 this
 round reached.
 
@@ -679,8 +679,8 @@ compile-time layout macro can express, per its own module doc), and the same fac
 two files' riscv64 halves, which hard-code QEMU's one-byte stride with no way to vary it. Full
 per-file reasoning in `design/roadmap/139-drive-down-unsafe.md`'s round 5 section.
 
-**Round 5 was measured against its own base commit (`757562a3`, the same one round 4 branched
-from), independently of round 4: 5 `unsafe {` blocks removed, 3 added, net -2** (`console.rs` flat,
+Round 5 was measured against its own base commit (`757562a3`, the same one round 4 branched
+from), independently of round 4: 5 `unsafe {` blocks removed, 3 added, net -2 (`console.rs` flat,
 1 before and 1 after, still real by criterion 2; `input.rs` 2 removed 1 added, net -1;
 `jh7110_trng.rs` 2 removed 1 added, net -1). Round 4 landed first, so this section's own arithmetic
 is restated here from the merged tree rather than the stale shared base: 779 blocks (round 4's own
@@ -696,13 +696,13 @@ when he replaced it later the same day, performed 2026-09-14). It is spelled her
 the blocks were counted, so the -1 stays checkable against base commit `757562a3`, and
 `design/roadmap/139-drive-down-unsafe.md`'s round 5 section spells it the same way.*
 
-**The ratchet does not move a fifth time.** With density unchanged at 87, the 7-point-headroom
+The ratchet does not move a fifth time. With density unchanged at 87, the 7-point-headroom
 ceiling stays 94: there is nothing to cinch that round 4 had not already cinched. The block count
 is real and lower, and it is recorded as such above; the ceiling tracks density, not a raw block
 count, and density is what a growing tree's line count keeps honest.
 
 **Lowered a sixth time, 94 to 88, by milestone 139 round 8 (2026-09-01), and the six-point step is
-the first one this measurement's own history argues for rather than the convention.** Rounds 6 and
+the first one this measurement's own history argues for rather than the convention. Rounds 6 and
 7 worked `user/` and left the ceiling at 94; round 8 is the first round to work `kernel/src` outside
 `arch/`, which had been the largest unworked pool in the tree (242 blocks, against `user/`'s 162
 after round 7) and which is also the part DECISIONS §14 calls verified. Two collapses, both the §94
@@ -716,22 +716,22 @@ allocator is the only thing that can check it. Two of the copies had already not
 copies (`user/rmle_service.rs`: *"a second copy of three lines"*; `user/session_reviver_service.rs`:
 *"matches `fs_service::frame`'s own shape"*) without anyone lifting it out, the same tell `ntp.rs`
 carried for round 1's cluster and `timetable.rs` for round 6's. `memory::alloc_zeroed` and
-`memory::alloc_contiguous_zeroed` (both new; **ratified by calef 2026-09-01**) hold it once, in the module that
+`memory::alloc_contiguous_zeroed` (both new; ratified by calef 2026-09-01) hold it once, in the module that
 owns the allocator; every migrated call site is now ordinary safe code.
 
 *The device tree, five sites.* `memory.rs`, `console.rs`, `pci.rs` and `smp.rs` (twice) each took
 the boot pointer (from `crate::DTB`, or as an argument that was always that same value) and handed
 it to `dtb::Dtb::from_ptr` under a hand-written comment rewording the same two facts: it is the
 pointer firmware put in `x0`/`a1` and `kernel_main` stashed before anything else ran, and it is
-physical, so the direct map names it. `crate::device_tree` (new; **ratified by calef 2026-09-01**) holds that once,
+physical, so the direct map names it. `crate::device_tree` (new; ratified by calef 2026-09-01) holds that once,
 beside the static it is a fact about. Three functions lost a `dtb_ptr` parameter that was always
 `crate::DTB` in the bargain, which is the same one-source-of-truth gain one level out.
 
-**Measured from the diff: 42 `unsafe {` blocks removed, 2 added, net -40**, taking `kernel/src`
+Measured from the diff: 42 `unsafe {` blocks removed, 2 added, net -40, taking `kernel/src`
 outside `arch/` from 242 to 202 and the tree-wide count from 738 to 698. Density 83 to 78
 (truncated; 78.8 exactly).
 
-**Why 88 and not something tighter. Ratified by calef, 2026-09-01.** An earlier draft of this
+Why 88 and not something tighter. Ratified by calef, 2026-09-01. An earlier draft of this
 paragraph argued against a "seven-point convention" and there is no such convention: the actual
 headroom on record is six points at round 1 (100 against a density of 90.8) and seventeen at round
 7 (94 against 77), with round 6's own "the 7-point cushion every prior round preserved" true of the
@@ -741,7 +741,7 @@ the headroom is argued beside the marker rather than read off a table. So 88 is 
 is that argument, made here.
 
 The argument is a measurement none of the earlier rounds had. Round 7 reached density 77 on
-2026-08-26; this round found 83 on 2026-09-01, **six points of unrelated growth in six days**, the
+2026-08-26; this round found 83 on 2026-09-01, six points of unrelated growth in six days, the
 steepest stretch on record and by some distance. A ceiling seven points over the current density is
 therefore about one week of ordinary lane traffic before it fires on somebody's honest work, which
 is not a ratchet, it is the exact "only ever rejects legitimate work" signature `script/lint` has
@@ -749,12 +749,12 @@ already had three checks deleted for. 88 keeps ten points over the 78 this round
 the observed rate is roughly ten days, and it still cinches six of the eleven points that were
 standing above the tree when this round started.
 
-**The gain is more than kept**, and the arithmetic is worth stating exactly in a note whose whole
-subject is a measurement: the density fell **five** points (83 to 78, truncated) and the ceiling
-fell **six** (94 to 88), so this round cinched one point further than it gained and nobody can
+The gain is more than kept, and the arithmetic is worth stating exactly in a note whose whole
+subject is a measurement: the density fell five points (83 to 78, truncated) and the ceiling
+fell six (94 to 88), so this round cinched one point further than it gained and nobody can
 spend the reduction back up to 94 quietly.
 
-**At most 23 `unsafe impl Send`/`Sync` claims** <!--count-at-most:unsafe-thread-safety-claims-->,
+At most 23 `unsafe impl Send`/`Sync` claims <!--count-at-most:unsafe-thread-safety-claims-->,
 and this one has no headroom at all. Each is a hand-written assertion that the compiler is wrong
 about a type, which is the most consequential unsafe in the tree: a wrong one is a data race that
 no test reliably reproduces. The population moved twice in three weeks, so a zero-slack ceiling
@@ -796,14 +796,14 @@ carries (`unsafe impl Sync for PerCpu`, cpu.rs's own comment: "no two cores ever
 block"), restated for the one architecture whose trap-entry assembly needs a second, smaller
 per-core scratch area beside it rather than folding into `PerCpu`'s existing fields directly.
 
-**No target for `kernel/src/arch/`**, which is 139 blocks and rising. Driving that number down means
+No target for `kernel/src/arch/`, which is 139 blocks and rising. Driving that number down means
 either writing assembly wrong or moving it out of `arch/`, and DECISIONS rule 1 says arch code
 belongs there, so a ceiling would be a gate pushing against the architecture. An honest census with
 no direction is the right answer. It is not left as prose, though, because prose is where numbers go
 stale: `script/lint` prints it on every run, asserted never.
 
-**No second `unsafe fn` count.** The `==> unsafe fn contracts` check above already derives one and
-prints it, at **53 declarations** on 2026-08-18, and this file's own "the shape of the 33" heading
+No second `unsafe fn` count. The `==> unsafe fn contracts` check above already derives one and
+prints it, at 53 declarations on 2026-08-18, and this file's own "the shape of the 33" heading
 has been wrong for days with nothing to say so. Adding a second count on a slightly different scope
 would be the exact drift this milestone exists to stop, so the register cites that line instead. The
 33 heading is left standing: its table of eleven `unsafe fn`s with no unsafe operation is still the
@@ -813,7 +813,7 @@ convention refuses.
 ### `// SAFETY:` parity is deliberately not a gate
 
 The obvious next check is that every `unsafe {}` block has a `// SAFETY:` comment, compared by
-count. **It should not be built, and measuring it is what settles that**, in two ways that both
+count. It should not be built, and measuring it is what settles that, in two ways that both
 point the same direction.
 
 `clippy::undocumented_unsafe_blocks` already enforces exactly this, per block rather than in
@@ -821,16 +821,16 @@ aggregate, as a hard error through `-D warnings` across all fourteen configurati
 builds. A count check cannot be stronger than that; it can only disagree with it.
 
 And it disagrees badly, in a way that gets worse the harder you try. A regex anchoring `SAFETY:`
-to the head of the comment block above each `unsafe {}` reports **65** undocumented blocks in code
+to the head of the comment block above each `unsafe {}` reports 65 undocumented blocks in code
 the gate compiles clean. Loosening it to accept the comment mid-line, which is how most of this
-tree writes it (`// ... the frame was retyped with GRANT. SAFETY: svc.`), still reports **38**. The
+tree writes it (`// ... the frame was retyped with GRANT. SAFETY: svc.`), still reports 38. The
 ones read are all false positives: a `#[cfg]` attribute sits between the comment and the block, or
 the comment covers a closure whose body holds the block, or it covers the first of two blocks on
 one line. A gate whose failures are documents that are right is the gate somebody deletes, which
 notes/counted-claims.md names as the way this convention dies.
 
 One residue is worth knowing rather than gating: `patches/std-nife/overlay/` holds 37 blocks and
-**15 of them carry no `SAFETY:` comment in any form**, because that code is compiled into `std` by
+15 of them carry no `SAFETY:` comment in any form, because that code is compiled into `std` by
 the farm and by no clippy configuration here. That is a coverage hole in the lint policy rather
 than a comment shortage, and it is recorded in the register's BUGS.
 
@@ -847,8 +847,8 @@ for userspace in a capability system. Reading the first token inside each block 
 | `core::arch::asm!` | 12 | entry stubs and the trap |
 | everything else | ~34 | mixed |
 
-So it is neither raw pointer arithmetic nor a missing abstraction in the usual sense. **Two
-populations, and both are one wrapper away.** The 114 `invoke` sites all call one `unsafe fn` whose
+So it is neither raw pointer arithmetic nor a missing abstraction in the usual sense. Two
+populations, and both are one wrapper away. The 114 `invoke` sites all call one `unsafe fn` whose
 own `# Safety` section says *"the kernel validates the capability and the method before acting; that
 is its whole job. The caller is trusting the kernel, not the other way around"*, which describes an
 obligation on nobody. It is not simply mismarked: a few methods (`aspace::MAP_INTO` among them) can
@@ -911,35 +911,35 @@ git grep -n 'SAFETY: as above'          # inherits the defect and none of the ma
 git grep -nE 'SAFETY: (a|an|the) [a-z]' # passive voice: an obligation with nobody owing it
 ```
 
-For each hit, the question is not whether it says "caller". It is **could this parameter have been
-produced without meeting the obligation?** `sched.rs`'s `endpoint_of` takes `&Scheduler`, which only
+For each hit, the question is not whether it says "caller". It is could this parameter have been
+produced without meeting the obligation? `sched.rs`'s `endpoint_of` takes `&Scheduler`, which only
 the lock guard can produce, so its sentence restates a guarantee. `switch_user_root(u64)` took
 anything at all.
 
 ## BUGS (milestone 112)
 
-**The `# Safety` check parses Rust with a regex and a brace counter.** It matches an `unsafe fn`
+The `# Safety` check parses Rust with a regex and a brace counter. It matches an `unsafe fn`
 declaration at the start of a line and tracks `impl ... for ...` blocks by nesting depth. A
 declaration split across lines by `rustfmt` would be missed, and a brace inside a string literal or a
 comment miscounts the depth. The tree has neither shape today and the check was verified against the
 real declarations, but this is a text scanner, not a parser. The same caveat applies to `script/lint`'s
 dead-code and `#[path]` checks, which are built the same way.
 
-**It cannot see a contract in the wrong place.** A `# Safety` section on the enclosing `impl` block,
+It cannot see a contract in the wrong place. A `# Safety` section on the enclosing `impl` block,
 or in the module doc, does not count; the check wants it on the item. That is the intent (a reader
 meets the function), but it means a legitimate arrangement could be flagged. Nothing in the tree is
 arranged that way yet.
 
-**Nothing checks that a SAFETY comment is true, relevant, or about the operation it sits over**, and
+Nothing checks that a SAFETY comment is true, relevant, or about the operation it sits over, and
 milestone 112 did not change that. `net_transport`'s `w16` carried a comment about capability
 invocation over a raw store for as long as the file has existed, and every gate was green on it.
 Fixing that one line does not make the next one visible.
 
-**The `# Safety` count moves with the tree and must be taken from the merged tree.** 51 declarations
+The `# Safety` count moves with the tree and must be taken from the merged tree. 51 declarations
 and 12 trait-impl methods were measured on milestone 112's branch on 2026-08-04. Two concurrent lanes
 adding unsafe code would both report honest numbers that disagree, which is the failure CLAUDE.md
 records for the Kani harness count.
 
-**The riscv64 `user` gap noted at the top of this file is still open.** `script/lint` compiles
+The riscv64 `user` gap noted at the top of this file is still open. `script/lint` compiles
 `user` and `user_mode_runtime` for aarch64 only, so nine of the fourteen sites in the handoff table above are
 linted on one ISA.
