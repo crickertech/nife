@@ -11,7 +11,7 @@ const CRED_VA: u64 = 0x0000_0000_00e3_0000;
 /// mirrors this program's own post-auth `map_page_frame(fs_page_frame, FS_VA, true, budget)`, but a
 /// run holds no budget yet at the point it must map its own connect channel). Margin over the one
 /// page a fresh mapping ever strictly needs, on this file's own existing style for every other
-/// region here.
+/// region here. One page more since milestone 152: the run's report endpoint is retyped from it.
 ///
 /// **Reclaimed once the run is dead** ([`wait_client`], 2026-09-26 UTC). A run's scratch pays for
 /// page tables in that run's own address space, so it is handed to
@@ -21,7 +21,7 @@ const CRED_VA: u64 = 0x0000_0000_00e3_0000;
 /// as a frame one: on 2026-09-26 the aarch64 suite reached `timetable_tests` with 252 of
 /// `memory_region::MAX_REGIONS` (256) live, and one more login test took it to 253, so the
 /// timetable's `--mem` split failed and the test hung rather than failing.
-const CLIENT_SCRATCH_UT_PAGES: u64 = 4;
+const CLIENT_SCRATCH_UT_PAGES: u64 = 5;
 
 /// Stack pages beyond the one page `run` maps. This process parses the initrd, parses an ELF, and
 /// builds a child address space (`supervision_protocol::build_child`), which is deeper than
@@ -402,7 +402,13 @@ pub fn spawn_client(
     // own, unrelated pages must never be able to exhaust or interfere with each other's page tables.
     let scratch =
         crate::memory_region::create(CLIENT_SCRATCH_UT_PAGES).expect("no scratch region for a run");
-    let report = sched::create_rendezvous();
+    // **The report endpoint comes out of the scratch too** (milestone 152), so reclaiming the
+    // scratch once the run is dead takes the endpoint with it. `sched::create_rendezvous` draws on
+    // the kernel's own chunks, which are never given back, and the whole machine shares
+    // `sched::MAX_RENDEZVOUS` (512) live endpoints: one per run was enough, with the durable-session
+    // tests' three more, to reach that ceiling in `timetable_tests` on 2026-09-26.
+    let report =
+        sched::create_rendezvous_from(scratch).expect("no report endpoint in a run's scratch");
     // Copied out of `w` rather than captured by reference: the spawned closure must be `'static`,
     // and an `RendezvousId` is a plain integer with nothing left to borrow once it is in hand.
     let (request, result) = (w.request, w.result);
