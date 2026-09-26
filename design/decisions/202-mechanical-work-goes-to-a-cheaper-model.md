@@ -7,6 +7,9 @@ ratified_by: calef
 
 # 202. Mechanical work goes to a cheaper model, and the gates are why that is safe
 
+*Amended 2026-09-26: rule text says "an architect" where it said calef, per §217 (every architect
+holds the whole role). Records and quotations keep his name.*
+
 calef, 2026-09-20: *"You have permission to route mechanical work to cheaper
 models and should capture that somewhere durable. To start, Sonnet is already available under our
 Claude subscription."* *(Section number provisional until the merge queue lands it.)*
@@ -28,8 +31,8 @@ numbers. **Everything else was execution against gates.**
 
 | Goes to the cheaper model | Stays |
 |---|---|
-| Mutation-survivor triage, test writing against a stated property | Design forks, and anything `AGENTS.md` calls calef's |
-| Record sweeps, glosses, index and citation repair | Naming, which is calef's under milestone 115 (the names that were ratified) |
+| Mutation-survivor triage, test writing against a stated property | Design forks, and anything `AGENTS.md` calls an architect's |
+| Record sweeps, glosses, index and citation repair | Naming, which is an architect's under milestone 115 (the names that were ratified) |
 | Parity ports where the shape is already set by another architecture | Merge conflict resolution and the merge queue |
 | Backlog work a script can verify: counts, censuses, triage to a ledger | Anything touching the syscall surface or a wire format |
 | Benchmark harnesses and their plumbing | A first implementation whose shape nobody has chosen yet |
@@ -64,7 +67,7 @@ So the trial is bounded and measured rather than assumed:
 - **What is recorded**: what the lane produced, what the maintainer had to redo, and whether the
   gates caught what went wrong or a person did.
 - **What would reverse this**: cleanup costing more attention than the routing saves. That is a
-  judgment calef makes on the record above, not a number a script returns.
+  judgment an architect makes on the record above, not a number a script returns.
 
 ## Trial 1, `board_console`, 2026-09-20: passed, and the prediction was wrong
 

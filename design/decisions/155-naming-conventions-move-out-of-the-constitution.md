@@ -7,13 +7,16 @@ ratified_by: calef
 
 # 155. The naming conventions move out of the constitution, and the note becomes the rule
 
+*Amended 2026-09-26: rule text says "an architect" where it said calef, per §217 (every architect
+holds the whole role). Records and quotations keep his name.*
+
 calef, 2026-09-18: **`AGENTS.md` keeps the naming authority and nothing else;
 `design/naming.md` becomes the authority for the conventions.** The file moves from `notes/` in the
 same ruling, because a document that is normative is not a note.
 
 **What that means concretely**, so no lane has to infer it:
 
-1. **`AGENTS.md` keeps four things**: names are calef's call, ship a **provisional** name and say so,
+1. **`AGENTS.md` keeps four things**: names are an architect's call, ship a **provisional** name and say so,
    never rename on your own initiative, and where the conventions live. Twenty-four lines where there
    were eighty-two.
 2. **`design/naming.md` keeps everything else**: the six-domain spelling table, §154's acronym test,
@@ -46,7 +49,7 @@ front of it to one it must choose to open, and this tree has been bitten by exac
 acceptable here because **the audience for the conventions is not the audience under time pressure.**
 A lane inventing a name ships it provisional, marked as expected to change, and the maintainer
 surfaces it. The conventions are needed at **ratification** and at **rename**, which are unhurried
-moments with calef in the loop. So the four lines that stay are exactly the ones whose violation is
+moments with an architect in the loop. So the four lines that stay are exactly the ones whose violation is
 expensive, and the ones that moved are the ones whose violation is already absorbed.
 
 ## Why the file left `notes/`
@@ -75,7 +78,7 @@ next person who moves normative text: enumerate what you are deleting, and prove
 
 ## What this does not change
 
-**Not the authority.** Names remain calef's, at every level including public functions.
+**Not the authority.** Names remain an architect's, at every level including public functions.
 
 **Not `script/lint`'s checks.** What it could and could not verify before, it verifies now; the
 conventions it cannot check were already prose and are prose in a different file.

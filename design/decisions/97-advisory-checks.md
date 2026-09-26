@@ -7,6 +7,9 @@ ratified_by: calef
 
 # 97. Six gates run on every pull request and none of them can stop one
 
+*Amended 2026-09-26: rule text says "an architect" where it said calef, per §217 (every architect
+holds the whole role). Records and quotations keep his name.*
+
 calef, 2026-08-25, in conversation: *"Ratify as written."* Raised 2026-08-18 by
 the maintainer, from a red trunk rather than from a worry: `main` failed `script/fastpath-footprint`
 for several hours and the mechanism that should have prevented it had been disabled by configuration
@@ -161,7 +164,7 @@ proposing a new one.
 
 ## What decides it
 
-This is calef's because it changes **what may merge**, which is merge authority rather than tooling.
+This is an architect's because it changes **what may merge**, which is merge authority rather than tooling.
 It is also cheap to reverse (a ruleset edit), so it does not want a long deliberation, and the
 *move fast on what can be undone* tenet applies: the expensive part is not the configuration, it is
 the hours of trunk-red that the current arrangement will keep producing while nobody decides.
