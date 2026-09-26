@@ -38,6 +38,12 @@ Checked 2026-09-19 in this worktree:
 - Milestone 168 is still `PARTIAL`, and its status says in its own words that it does not turn
   `BUILT` until `tasks=4` has a number. It still does not have one.
 
+*(Dated note, 2026-09-26, decisions-hygiene lane.)* The first bullet above is the tree before
+commit `ab6ff0fa0` (2026-09-19, "job_mix: every point is the median of 21"), the change this
+section's opening paragraph already reports. `crates/job_mix/src/lib.rs:465` now reads `pub const
+REPEATS: usize = 21;` with a compile-time assertion that it stays odd, and `ECHO_SERVERS` is at line
+521. The bullets are kept as the premise the options were priced against, not as the current tree.
+
 ## The measurement
 
 Across five boots of an identical image the reported figure at `tasks=4` ranged from **766,361 to
