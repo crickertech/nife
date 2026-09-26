@@ -75,12 +75,16 @@ the main checkout's `target/` that day.
 
     script/board-image --soak --tftp        # or --job-mix, --bench: the milestone's own flag
 
-**`NOT SEALED` on a `--soak`, `--job-mix` or `--bench` build is a false alarm. Do not rebuild.**
-Those builds divert the boot before the only caller of the measured-boot check. So the linker drops
-the trust root, and `sealed_pair` finds no digests. See `crates/sealed_pair`'s `BUGS` and
-milestone 563 (a seal check that reads bytes cannot see a check that was dropped). The pair boots. It cost an hour at the bench on 2026-09-21 and half an hour on 2026-09-25, because the
-message names two builds and points nowhere near a cargo feature. `script/board-image` exits 1 when
-it happens, and the files in `target/board` are still the matched pair it packed.
+For xenon the image is a single UEFI file instead:
+
+    cargo xtask uefi-image --features soak_test   # then copy target/esp/EFI/BOOT/BOOTX64.EFI
+                                                  # to \EFI\BOOT\BOOTX64.EFI on a FAT32 stick
+
+`script/board-image` must print `SEALED` and exit 0. `NOT SEALED` is a real failure on every build,
+including `--soak`, `--job-mix` and `--bench`: the pair would halt at `MEASURED BOOT REFUSED`. Stop
+and report it. Until milestone 563 (a seal check that reads bytes cannot see a check that was
+dropped) merged on 2026-09-26, those three builds skipped measured boot and the warning was a
+false alarm. That is why older notes and bench logs say to ignore it.
 
 ## Step 2: rehearse under QEMU, with the same tree
 
@@ -153,7 +157,7 @@ same image under QEMU (step 2) before anyone writes "silicon-only".
 
 | You see | Do |
 |---|---|
-| `NOT SEALED` on a soak, job-mix or bench build | ignore it, step 1 |
+| `NOT SEALED` on any build | stop and report: it is real since milestone 563 merged, step 1 |
 | `soak-test: no heartbeat was seen` in 0.2 s under QEMU | a missing `nifefs.img` on a tree older than 2026-09-25; rebase |
 | `payload came from card` | stop, report the `tftp server is` line |
 | console exit 2 (quiet) | report the last 50 lines; calef power-cycles only after the log is saved |

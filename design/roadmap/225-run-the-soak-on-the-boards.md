@@ -102,9 +102,9 @@ it. What remains on radon is more boots, not longer ones.
   booted nife. Checked 2026-09-25: 127 is NOT-STARTED.
 - **Outstanding.** More radon boots, because one boot is one draw and a slow draw has never been
   soaked for long with this build. Checked 2026-09-25: E4 is the only radon row with a log.
-- **Recorded.** `script/board-image --soak` reports `NOT SEALED` for a pair that boots; the
-  limitation lives in `crates/sealed_pair/src/lib.rs`'s `BUGS` and milestone 563 (a seal check that
-  reads bytes cannot see a check that was dropped) owns the fix.
+- **Done.** The false `NOT SEALED` on a soak build that cost this run half an hour. Milestone 563
+  (a seal check that reads bytes cannot see a check that was dropped) carried it, merged
+  2026-09-26: soak builds now seal, and `script/board-image --soak` printed `SEALED` on a rebuild.
 
 ## Index row
 
