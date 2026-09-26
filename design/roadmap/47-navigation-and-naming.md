@@ -5,10 +5,9 @@
 false, and both are corrected there rather than here: the glob caretaker was built 2026-07-31, and the
 `std` PAL's three namespace verbs were bound 2026-08-04.
 
-**Gate: DECISION §229.** One of the three items left below is still an architect's call, minted on
-2026-09-26 as a PROPOSED section (number provisional until the merge queue lands it). The other
-two were ruled the same day: completion in §227 (how Tab reaches the shell), and the set grant in
-§228 (how a set of matched names reaches the progenitor). The old gate, a milestone 64 measurement the
+**Gate: NONE.** The three items left below were architect's calls, and calef ruled all three on
+2026-09-26: §227 (how Tab reaches the shell), §228 (how a set of matched names reaches the
+progenitor) and §229 (how a bare name at the prompt reaches an installed program). The old gate, a milestone 64 measurement the
 namespace half waited on, was discharged 2026-08-18 when that measurement landed.
 
 Where this stands, 2026-09-26 (UTC), `milestone/47-navigation`. Every item below was checked
@@ -16,7 +15,7 @@ against the tree that day. One was built: `caps` prints the inert-configuration 
 will read, from the boot shell's own read-only view of the same frame (DECISIONS §111 (inert configuration is a validated page)'s preview;
 notes/env-config.md). One was settled elsewhere: the function-call syntax fork was refused by
 §141 (application is grant) on 2026-09-03. What was left was three architect's calls, each
-written up with its options. Two were ruled on 2026-09-26 and are now work to build; one waits:
+written up with its options. All three were ruled on 2026-09-26 and are now work to build:
 
 - Completion: ruled D in §227 (how Tab reaches the shell). The shell edits its own line in raw
   mode.
@@ -25,8 +24,8 @@ written up with its options. Two were ruled on 2026-09-26 and are now work to bu
   2b in §228 (how a set of matched names reaches the progenitor): a page the shell fills.
 - `PATH` for installed programs: the manifest question that blocked it is answered by §208 and
   §219, and what remains is how a bare name reaches an installed program. PROPOSED under "The
-  manifest question was answered elsewhere" below, and minted as §229 (how a bare name at the
-  prompt reaches an installed program).
+  manifest question was answered elsewhere" below. Ruled B2 in §229 (how a bare name at the prompt
+  reaches an installed program): the activation set, never an owner's vouch.
 
 The secrets third moved out of this milestone: it is §41 (the endpoint is the broker)'s endpoint, milestone 65 (a secrets service)'s service and
 §165's open question, and no program on nife needs one (Follow-on, below).
@@ -1089,8 +1088,8 @@ further here).
 
 ### The manifest question was answered elsewhere (checked 2026-09-26). **PROPOSED: how a bare name reaches an installed program.**
 
-The decision is §229 (how a bare name at the prompt reaches an installed program), minted
-2026-09-26; this section is its evidence.
+§229 (how a bare name at the prompt reaches an installed program) ruled B2 on 2026-09-26; this
+section is its evidence.
 
 The table above is overtaken. §208 (installing is granting) made the activation set the record of
 what is installed, digest and manifest together. §219 (how the shell names an installed program to
@@ -1356,9 +1355,10 @@ estimates for unbuilt work are guesses on a scale calibrated from history, not m
   shell turns raw mode on and runs `LineDisc` itself. Not built: `crates/line_editor` still ignores
   Tab and `components/src/swish.rs` still reads through `OP_READLINE`, checked 2026-09-26. The
   building lane owes the two measurements §227 names.
-- **Decision.** `PATH`, `design/decisions/229-how-a-bare-name-reaches-an-installed-program.md`
-  (PROPOSED, recommends the live activation set with ambiguity refused). An installed program still
-  runs only by path, checked 2026-09-26.
+- **Outstanding.** `PATH`, now buildable: calef ruled
+  `design/decisions/229-how-a-bare-name-reaches-an-installed-program.md` B2 on 2026-09-26. An
+  installed program still runs only by path, checked 2026-09-26. The lane must meet the two
+  checks on owner-vouch entries that §229 names.
 - **Milestone 65.** Environment's secrets third, moved rather than built. A secret here is an
   endpoint (§41), the service that holds one is milestone 65's (BUILT), and where a stored secret comes from is §165 (PROPOSED). §220
   (signed builds) met the one candidate customer, a signing key, on 2026-09-26 and recommended

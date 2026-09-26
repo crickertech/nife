@@ -1,16 +1,57 @@
 ---
-status: PROPOSED
+status: DECIDED
 raised: 2026-09-26
+decided: 2026-09-26
+ratified_by: calef
 ---
 
-# 229. How a bare name at the prompt reaches an installed program
+# 229. How a bare name at the prompt reaches an installed program: the activation set, and never an owner's vouch
 
 Raised 2026-09-26 by the maintainer, from milestone 47 (navigation and naming)'s block, under
 "The manifest question was answered elsewhere" in
 [design/roadmap/47-navigation-and-naming.md](../roadmap/47-navigation-and-naming.md). The options
 table is there. *(Section number provisional until the merge queue lands it.)*
 
-## What is being decided
+## The ruling
+
+calef, 2026-09-26 (UTC): *"I don't want bare word uptime to run the local one. I want the system
+one to override and the local one to need to be called by path. That allows a user to run both."*
+
+That is option B with a sub-rule, recorded here as B2:
+
+- A bare name resolves through the live activation set, one entry per name, with no search order.
+- Any word containing `/` is a path, and a path always means that file.
+- An owner's `vouch ./x` grants permissions by digest, but never claims or replaces a bare name.
+  The bare-name lookup ignores owner-vouch entries, so the system program keeps the name and a
+  local build runs by path.
+- Both refusals in the recommendation below stand. At install, another package cannot take a name.
+  At the prompt, a name that is both an image program and a live entry is refused, naming both
+  paths.
+
+### Refused, with reasons
+
+- A (paths only) and C (a bound directory), for the reasons in the options table.
+- B1, the owner's vouch takes over the name. calef wants both programs runnable, with the system
+  one on the bare word.
+- B3, a priority between vouched and packaged entries. A priority is a search order, which is
+  what B exists to avoid.
+
+### What the building lane must check
+
+The owner's `vouch` comes from PR #1340, for milestone 198 (a package manager), not yet merged. It writes an ordinary entry, `<name> owner <digest>`, with
+`activation_set::OWNER` in the package column. Two things follow, and the lane chooses how to meet
+each:
+
+- The name lookup must not match those entries. Either it skips `OWNER` rows, or `vouch` records
+  them so that no name lookup can match them.
+- On that branch an owner entry is "replaced by a later vouch or install of the same program
+  name" (the doc on `activation_set::OWNER`), because `with_entry` keeps one entry per name. So
+  `vouch ./uptime` would today displace the packaged `uptime`, not merely sit beside it. B2 needs
+  a vouch never to replace a package's entry, which the same choice can settle.
+
+The options as they were raised follow, unchanged apart from this section.
+
+## What was decided
 
 What `uptime` at the prompt means when `uptime` is an installed package's program rather than one
 compiled into the image. This is what is left of `PATH` here. §208 (installing is granting) made the
@@ -78,7 +119,7 @@ reason to answer it before `package install` has users.
 7. Equal cost. Yes. C costs more and is refused for its order; A costs less, so B is not chosen for
    effort.
 
-## What is blocked until this is answered
+## What this unblocks
 
-Nothing outside milestone 47. It is the third of its three open items, and a name at the prompt is
-calef's to rule on under AGENTS.md's naming rule even where the mechanism is reversible.
+Bare names for installed programs, buildable in milestone 47 (navigation and naming). With this
+ruling none of the milestone's three open items waits on an architect.

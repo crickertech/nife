@@ -332,7 +332,7 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 220 | DECIDED | [Signed builds: a vendor signs, a developer self-signs, and trusting a key is scoped](220-signed-builds-and-scoped-key-trust.md) |
 | 227 | DECIDED | [How Tab reaches the shell: the shell edits its own line, and the terminal wire does not change](227-the-shell-edits-its-own-line.md) |
 | 228 | DECIDED | [How a set of matched names reaches the progenitor: in a page the shell fills, copied and checked](228-how-a-set-of-names-reaches-the-progenitor.md) |
-| 229 | PROPOSED | [How a bare name at the prompt reaches an installed program](229-how-a-bare-name-reaches-an-installed-program.md) |
+| 229 | DECIDED | [How a bare name at the prompt reaches an installed program: the activation set, and never an owner's vouch](229-how-a-bare-name-reaches-an-installed-program.md) |
 
 Two blocks that lived among the decisions are not decisions and moved out with the split, the same
 way milestone 76 moved four essays out of the roadmap: [the open design
