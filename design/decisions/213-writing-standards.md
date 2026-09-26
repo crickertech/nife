@@ -12,7 +12,8 @@ no sentence over 40 words, and 4 or fewer bold spans per 1,000 words. Rule 4 sta
 The ratchet is the enforcement, and two proposed rules stay dropped. Raised by calef the same day,
 reading a maintainer session's proposal to cap document length. A maintainer session then measured
 the tree and proposed four rules, he replied *"Set them."*, and he then changed the median from 25 to
-20 and split rule 3 in two. Section number 213 was minted at merge on 2026-09-24.
+20 and split rule 3 in two. Section number 213 was minted at merge on 2026-09-24. He added the
+ruling on line-opening labels on 2026-09-26, shortly after midnight UTC.
 
 His words, which are the whole brief:
 
@@ -107,14 +108,61 @@ Three rules carry numbers. The fourth is the most valuable and no machine can ch
 3. Bold marks a claim, not a clause, and it is two rules rather than one. First, the budget: 4 or
    fewer `**…**` per 1,000 words, against today's median of 16.1 with every document over it. Second,
    and this is where the volume is: a bold span that opens a line is a heading that lost its syntax.
-   Promote it to a real heading, or drop the bold and let the sentence carry itself. The 816 whole-line
-   bolds are unambiguous and mechanically convertible, so they are the first cut.
+   Promote it to a real heading, or drop the bold and let the sentence carry itself. Which fix
+   applies to which bold is ruled below, under *A label that opens a line becomes a heading*. The 816
+   whole-line bolds are unambiguous and mechanically convertible, so they are the first cut.
 4. State a finding once, and never comment on your own finding. No number, and this is the rule that
    would cut the most. `design/fatal-risks.md` is the worked example a reader can go check. A finding
    there appears in a status line, again in its own subsection, again in the running-order table.
    Each appearance carries a sentence telling the reader how to feel about it: "which is the point",
    "and that is what makes it credible", "stated once so it is not re-litigated". The finding with
    its caveat is the content. The commentary on the finding is not, and it is often the longest part.
+
+### A label that opens a line becomes a heading
+
+Ruled by calef on 2026-09-26 (UTC). He took it to be the rule already, and it was not: rule 3 named
+two fixes and never said which bold gets which. The volume is in the table above, where 18,712 of
+29,804 bold spans open a line.
+
+A label names the part of the document that follows: *Operations.*, *Spawn side.*, *Running the
+gate.* A bold label that opens a paragraph becomes a real heading, one level below the heading it
+sits under, without its trailing period or colon. The paragraph keeps its words.
+
+A claim is out of scope. A bold sentence that opens a bullet and asserts a finding (*`std::net::TcpListener`
+is bound*, *The multicast half was retired on 2026-09-15*) is emphasis, not a heading. Rule 3's
+budget governs it, and dropping the bold is the usual fix. The test is what the bold does, not its
+grammar. A label is something a reader might want to jump to, and a claim is something a reader
+should not miss. So a sentence standing where its siblings are noun phrases is a label too.
+
+Fields a script parses, such as `**Status:**`, `**Gate:**` and `**Built:**`, are neither. They wait
+on the frontmatter ruling below.
+
+A list of parallel items is decided by the length of its items:
+
+- Items that are sections, several sentences each, dissolve. Each label becomes a heading, and its
+  item becomes a paragraph under it. `notes/net.md`'s socket contract is the worked example: five
+  items of three to eight sentences, from *A socket is a socket id.* to *One binary, one archive
+  entry.*, became five `###` headings on 2026-09-26.
+- Items that are entries, a sentence or two each, stay a list and lose the bold. The list marker
+  already shows where each entry starts. A heading per short entry would bury the outline under its
+  own table of contents. The roadmap's repeated *Recorded.* and *Refused.* tags are this kind.
+
+### Why the label rule is rung 3 for now
+
+A gate was measured before it was refused, on 2026-09-26 over the ratchet's scope of 1,216
+documents. The candidate: a line-opening bold span of five words or fewer that ends in a period or
+colon, with more text after it in the same paragraph. It matches 5,720 spans in 967 documents.
+
+Of 80 sampled matches, 24 were labels a heading fixes. 23 were repeated tags like *Recorded.* and
+*Outstanding.*, which lose their bold instead. 12 were parsed fields, 15 were claims (*That is a
+syscall.*, *The seam is the payoff.*) and 5 were definition terms. Under a third of the hits are
+what this rule converts. It also misses long labels: 5 of 40 sampled non-matches were labels over
+five words, such as *Why this is the selling point, and safe.* Telling a claim from a label is a
+question about verbs, and a regular expression cannot ask it.
+
+So the rule is rung 3, a record at the thing: this section, and the headings a converted document
+now carries. The ratchet's line-opening bold count is the rung-2 backstop, and it already stops a
+document over the budget from gaining a label.
 
 ### The budget has no irreducible floor, and an earlier claim that it did was wrong
 
@@ -211,6 +259,8 @@ then a document whose budget is spent on markup records that in its own `BUGS` s
 - This document once carried a `**Status:` line, a line-opening bold that rule 3 deprecates, as a
   marked exception because `script/decisions` parsed it. Milestone 582 (a decision's status becomes
   a field) moved the status into frontmatter, so the exception is gone.
+- The label gate's 80-sample classification is one agent's hand judgment on 2026-09-26, and the
+  line between a short claim and a label is exactly where two readers would disagree.
 - This section meets its own three numbers, which tests that they are livable in a document carrying
   numbers and citations. It does not test them on a note explaining a mechanism, and that is the
   longer half of the tree.
