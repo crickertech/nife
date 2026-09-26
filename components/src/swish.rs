@@ -1905,7 +1905,10 @@ fn dispatch_one(nav: &mut Nav, cmd: &[u8]) {
         // `each(name, is_dir)` callback is the wrong shape for it; what it shares with the
         // navigation builtins is the argument for being a builtin at all.
         Command::Apropos(term) => say(apropos(nav, term)),
-        Command::Package(tail) => package(nav, tail),
+        Command::Package(tail) => {
+            package(nav, grant_plan::package_verb(tail), swish::PACKAGE_USAGE);
+        }
+        Command::Vouch(tail) => package(nav, grant_plan::vouch_verb(tail), swish::VOUCH_USAGE),
         Command::Run(spec) => run(nav, cmd, spec),
         // Handled above, by the one implementation the witness also runs.
         Command::Cd(_)
@@ -2208,18 +2211,18 @@ fn send_frames(dir: u64, handle: u64, pages: u64, staging: u64) -> bool {
 /// (`grant_plan::Command::Package` has why this is a request and not a program).
 ///
 /// An install sends the package file's bytes exactly as [`run_image`] sends an executable's, so
-/// the progenitor checks its own copy. The shell never reads or writes `activation/` itself here;
-/// that it *could* is `notes/packages.md`'s first BUGS entry.
-fn package(nav: &mut Nav, tail: &[u8]) {
+/// the progenitor checks its own copy, and so does `vouch` (DECISIONS §221 (the boot prompt is the
+/// owner's console)), with the name to record them under after the frames. The shell never reads
+/// or writes `activation/` itself here; §221 ruled that this prompt, the owner's console, may.
+fn package(nav: &mut Nav, verb: grant_plan::PackageVerb<'_>, usage: &[u8]) {
     use spawnproto::{Activation, ActivationStatus as S};
-    let verb = grant_plan::package_verb(tail);
     let (r0, r1) = match verb {
         grant_plan::PackageVerb::Usage => {
             refused();
-            print(swish::PACKAGE_USAGE);
+            print(usage);
             return;
         }
-        grant_plan::PackageVerb::Install(path) => {
+        grant_plan::PackageVerb::Install(path) | grant_plan::PackageVerb::Vouch(path) => {
             let Some(dir) = nav.dir else {
                 return say(Say::NoDirectory);
             };
@@ -2236,10 +2239,23 @@ fn package(nav: &mut Nav, tail: &[u8]) {
                 nav.close(handle);
                 return out_of_budget();
             };
-            let (w0, w1, w2) = spawnproto::activation_request(Activation::Install, size);
+            let vouching = match verb {
+                grant_plan::PackageVerb::Vouch(_) => grant_plan::vouched_name(path),
+                _ => None,
+            };
+            let what = if vouching.is_some() {
+                Activation::Vouch
+            } else {
+                Activation::Install
+            };
+            let (w0, w1, w2) = spawnproto::activation_request(what, size);
             send(SPAWN, w0, w1, w2);
             let read_ok = send_frames(dir, handle, pages, staging);
             nav.close(handle);
+            if let Some(name) = vouching {
+                let (lo, hi) = filesystem_protocol::grant::pack_name(name);
+                send(SPAWN, lo, hi, name.len() as u64);
+            }
             let (r0, r1, _) = recv(RESULT);
             user_mode_runtime::destroy_region(staging);
             cap_delete(staging);
@@ -2819,12 +2835,13 @@ fn caps_image(nav: &mut Nav, spec: RunSpec) {
 /// `script/stack-frame-check` holds every frame to; [`RANKED`] is here for the same reason.
 static mut GENERATION_TABLE: [u8; filesystem_protocol::PAGE] = [0; filesystem_protocol::PAGE];
 
-/// **The live generation, if it lists `digest`**: `activation/current`, then the generation it
+/// **The live generation, if it lists `digest`, and whether the owner vouched for it**:
+/// `activation/current`, then the generation it
 /// names, read as the progenitor reads them (`crates/system_initializer`'s `FsCalls::live_generation`)
 /// and looked up with the same `activation_set::lookup_digest`. `None` on a miss and on every way
 /// of failing to read the table, which is the progenitor's rule too: a table that cannot be read
 /// vouches for nothing.
-fn live_generation_listing(nav: &Nav, digest: &measured_boot::Digest) -> Option<u32> {
+fn live_generation_listing(nav: &Nav, digest: &measured_boot::Digest) -> Option<swish::Vouched> {
     let act = nav.name_call(
         fs::OPENDIR,
         fs::ROOT,
@@ -2852,7 +2869,13 @@ fn live_generation_listing(nav: &Nav, digest: &measured_boot::Digest) -> Option<
             return None;
         }
         let text = core::str::from_utf8(&table[..n]).ok()?;
-        matches!(activation_set::lookup_digest(text, digest), Ok(Some(_))).then_some(number)
+        match activation_set::lookup_digest(text, digest) {
+            Ok(Some(entry)) => Some(swish::Vouched {
+                generation: number,
+                by_owner: entry.package == activation_set::OWNER,
+            }),
+            _ => None,
+        }
     })();
     nav.close(act);
     found

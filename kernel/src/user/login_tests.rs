@@ -130,6 +130,57 @@ fn ensure_home_subtree(fs_ep: sched::RendezvousId, fs_page_frame: u64, name: &[u
     }
 }
 
+/// **Write the owner's run-unvouched list** (`login_protocol::RUN_UNVOUCHED_LIST`, DECISIONS §221
+/// (the boot prompt is the owner's console), ruling 2) at the root of the shared test file service,
+/// as the boot prompt would; `None` removes it, which is the default: no list lists nobody.
+///
+/// Issued the way [`ensure_home_subtree`] issues its `MKDIR`, directly on the file page, and for
+/// its reason: called between logins, when no session is live, so nothing else is mid-request on
+/// that page. Every test that depends on the list sets it first, because the file service is one
+/// fixture for the whole suite and a test order is not a contract.
+fn set_run_unvouched_list(list: Option<&[u8]>) {
+    use filesystem_protocol::fs;
+    let (fs_ep, fs_page_frame) =
+        fs_service::root_directory(fs_service::blk_server_image(), redoxfs_server_image())
+            .expect("wired() already brought the file service up");
+    // SAFETY: as in `ensure_home_subtree`: the file service's own shared page, idle between logins.
+    let page = unsafe {
+        core::slice::from_raw_parts_mut(
+            mmu::phys_to_virt(fs_page_frame) as *mut u8,
+            filesystem_protocol::PAGE,
+        )
+    };
+    let name = login_protocol::RUN_UNVOUCHED_LIST.as_bytes();
+    let named = |page: &mut [u8], verb: u64| {
+        page[..name.len()].copy_from_slice(name);
+        sched::ipc_call(fs_ep, [fs::req(verb, fs::ROOT, name.len() as u64), 0])[0] as i64
+    };
+    let Some(list) = list else {
+        // `ENOENT` is the state asked for, so the answer is not checked.
+        named(page, fs::UNLINK);
+        return;
+    };
+    let mut h = named(page, fs::OPEN);
+    if h < 0 {
+        h = named(page, fs::CREATE);
+    }
+    assert!(
+        h >= 0,
+        "could not open or create the run-unvouched list ({h})"
+    );
+    let h = h as u64;
+    let truncated = sched::ipc_call(fs_ep, [fs::req(fs::TRUNCATE, h, 0), 0])[0] as i64;
+    assert_eq!(truncated, 0, "could not truncate the run-unvouched list");
+    page[..list.len()].copy_from_slice(list);
+    let wrote = sched::ipc_call(fs_ep, [fs::req(fs::WRITE, h, list.len() as u64), 0])[0] as i64;
+    assert_eq!(
+        wrote,
+        list.len() as i64,
+        "short write of the run-unvouched list"
+    );
+    sched::ipc_call(fs_ep, [fs::req(fs::CLOSE, h, 0), 0]);
+}
+
 /// **Wire the whole system once**: entropy, the credential service (`credential_tests::provisioned`'s
 /// own fixture, which already provisions `chris`, `corinne` and `graeme` among the three family
 /// logins design/roadmap/56-secrets-and-entropy.md names), the file service, and the login service
@@ -245,6 +296,11 @@ fn login_grants_a_working_capability_set_to_the_identity_it_verified() {
         crate::testing::skip!("no virtio-rng device or no RedoxFS disk attached");
     };
     free_terminal(&w);
+    // No owner's list, which is a fresh machine's state: `login` holds the run-unvouched
+    // capability and must give it to nobody (DECISIONS §221 (the boot prompt is the owner's
+    // console), ruling 2). Checked on this login rather than a login of its own, because every
+    // extra run in this suite is paid for by a later test's free frames (`CLIENT_SCRATCH_UT_PAGES`).
+    set_run_unvouched_list(None);
     let cli =
         program("login_test_client").expect("no login_test_client program in the initrd archive");
     let r = ls::client(cli, &w, ls::LOGIN, CHRIS, CHRIS);
@@ -252,6 +308,11 @@ fn login_grants_a_working_capability_set_to_the_identity_it_verified() {
         r[0],
         ls::RPT_OK,
         "a correct identity and secret were not authenticated",
+    );
+    assert_eq!(
+        r[1] & ls::F_RUN_UNVOUCHED_ANNOUNCED,
+        0,
+        "with no owner's list, chris was announced the run-unvouched capability",
     );
     assert_eq!(
         r[1] & ls::F_DIR_WORKS,
@@ -319,6 +380,10 @@ fn two_different_identities_get_independently_working_channels_and_correct_attri
         crate::testing::skip!("no virtio-rng device or no RedoxFS disk attached");
     };
     free_terminal(&w);
+    // **And the owner's list tells them apart** (DECISIONS §221 ruling 2): it names corinne and not
+    // chris, so one read of one file must answer both ways. Riding these two logins rather than
+    // two of its own, for the headline test's reason.
+    set_run_unvouched_list(Some(b"corinne\n"));
     let cli =
         program("login_test_client").expect("no login_test_client program in the initrd archive");
 
@@ -373,6 +438,19 @@ fn two_different_identities_get_independently_working_channels_and_correct_attri
             "{label}'s budget did not work",
         );
     }
+    assert_eq!(
+        r_chris[1] & ls::F_RUN_UNVOUCHED_ANNOUNCED,
+        0,
+        "chris is not on the owner's list and was announced the run-unvouched capability",
+    );
+    let listed = ls::F_RUN_UNVOUCHED_ANNOUNCED | ls::F_RUN_UNVOUCHED_NOT_GRANTABLE;
+    assert_eq!(
+        r_corinne[1] & listed,
+        listed,
+        "corinne is on the owner's list and was not given a run-unvouched capability she cannot \
+         pass on",
+    );
+    set_run_unvouched_list(None);
 }
 
 /// **Two clients reaching the front door together get independent channels, and neither observes
@@ -974,8 +1052,9 @@ fn login_hands_out_the_terminal_once_and_denies_a_concurrent_second_login_until_
     );
 }
 
-/// **Each session `login` builds is handed the run-unvouched capability, and cannot pass it on**
-/// (DECISIONS §219 (how the shell names an installed program to the spawner) gate D2, milestone 198 (a package manager) rung 3a).
+/// **A listed identity's session is handed the run-unvouched capability, and cannot pass it on**
+/// (DECISIONS §219 (how the shell names an installed program to the spawner) gate D2, milestone 198 (a package manager) rung 3a;
+/// DECISIONS §221 (the boot prompt is the owner's console), ruling 2, for "listed").
 ///
 /// What this proves that nothing else would: that the sixth capability a session receives names
 /// the very endpoint the spawner gave `login` (a word sent on it arrives on that endpoint, which is
@@ -988,7 +1067,7 @@ fn login_hands_out_the_terminal_once_and_denies_a_concurrent_second_login_until_
 /// `WRITE | GRANT` in `components/src/login.rs` turned this test red. The client's `SEND_CAP` of it
 /// then succeeded, onto the report endpoint, and arrived in place of the report (word 0 read 0).
 #[test_case]
-fn login_hands_each_session_the_run_unvouched_capability_and_it_cannot_be_passed_on() {
+fn login_hands_a_listed_session_the_run_unvouched_capability_and_it_cannot_be_passed_on() {
     if fs_service::fs_server_image().is_none() {
         crate::testing::skip!(fs_service::NO_FS_SERVER);
     }
@@ -996,6 +1075,7 @@ fn login_hands_each_session_the_run_unvouched_capability_and_it_cannot_be_passed
         crate::testing::skip!("no virtio-rng device or no RedoxFS disk attached");
     };
     free_terminal(&w);
+    set_run_unvouched_list(Some(b"# the owner's list\nchris\n"));
     let cli =
         program("login_test_client").expect("no login_test_client program in the initrd archive");
     // `spawn_client`/`wait_client` for the terminal test's reason: the role blocks in its `send`
@@ -1037,4 +1117,5 @@ fn login_hands_each_session_the_run_unvouched_capability_and_it_cannot_be_passed
         assert_eq!(r[1] & bit, bit, "{what}");
     }
     free_terminal(&w);
+    set_run_unvouched_list(None);
 }

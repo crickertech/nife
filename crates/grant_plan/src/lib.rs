@@ -1573,6 +1573,11 @@ pub enum Command<'a> {
     ///
     /// The tail is classified by [`package_verb`]. Name: provisional (2026-09-26).
     Package(&'a [u8]),
+    /// `vouch <path>`: **the owner vouches for a file's bytes** (DECISIONS §221 (the boot prompt is
+    /// the owner's console)), so they run vouched, recorded under the path's last component. The
+    /// same request as [`Command::Package`]'s, one verb over (`spawnproto::Activation::Vouch`), and
+    /// the tail is classified by [`vouch_verb`]. Name: provisional (2026-09-26).
+    Vouch(&'a [u8]),
     /// A program invocation: `<prog> [--mem N] [token ...]`. Named `Run` for the act of running a
     /// program, not for a verb on the line; milestone 47 deleted the verb. A first word that is not
     /// a builtin lands here even when no such program exists, and [`plan`] answers
@@ -2359,6 +2364,9 @@ pub fn parse(line: &[u8]) -> Command<'_> {
         // [`package_verb`]'s to classify, so a bare `package` still reaches the shell and is
         // answered there with what it takes.
         b"package" => Command::Package(trim(rest)),
+        // **The owner vouches for a file** (DECISIONS §221). Its own word rather than a
+        // `package` verb because it names no package: the bytes are the whole of what is vouched.
+        b"vouch" => Command::Vouch(trim(rest)),
         // **`rm` is deliberately not here.** It was a builtin in the commands lane and is a program
         // now (milestone 47's rmdir lane): a builtin runs with the shell's whole endowment, and a
         // destructive loop should take an explicit attenuated grant instead. Since builtins are
@@ -2386,6 +2394,9 @@ pub enum PackageVerb<'a> {
     Remove(&'a [u8]),
     /// `package rollback`: the generation below the live one becomes live.
     Rollback,
+    /// `vouch <path>`: the owner vouches for the file's bytes, recorded under [`vouched_name`] of
+    /// the path. A word with a `/` in it, by the rule an image runs by: a word with a `/` is a file.
+    Vouch(&'a [u8]),
     /// Anything else, including a verb with a missing or extra operand. The shell answers it with
     /// the three forms, and sends nothing.
     Usage,
@@ -2405,6 +2416,31 @@ pub fn package_verb(tail: &[u8]) -> PackageVerb<'_> {
         b"rollback" if operand.is_empty() => PackageVerb::Rollback,
         _ => PackageVerb::Usage,
     }
+}
+
+/// Classify [`Command::Vouch`]'s tail: one operand, a path (it has a `/`), whose last component
+/// ([`vouched_name`]) the activation set can record. Anything else is [`PackageVerb::Usage`].
+pub fn vouch_verb(tail: &[u8]) -> PackageVerb<'_> {
+    let path = trim(tail);
+    let one_word = !path.is_empty() && !path.iter().any(u8::is_ascii_whitespace);
+    match vouched_name(path) {
+        Some(_) if one_word && path.contains(&b'/') => PackageVerb::Vouch(path),
+        _ => PackageVerb::Usage,
+    }
+}
+
+/// **The name a vouched file is recorded under**: its path's last component, which is what a
+/// person sees in `caps` and what `package remove` takes. `None` when it is empty, longer than the
+/// sixteen bytes a packed name carries (`filesystem_protocol::grant::MAX_NAME`), `.` or `..`, or
+/// holds a `#`, which the activation set's lines cannot carry.
+pub fn vouched_name(path: &[u8]) -> Option<&[u8]> {
+    let name = path.rsplit(|&b| b == b'/').next().unwrap_or(path);
+    let recordable = !name.is_empty()
+        && name.len() <= 16
+        && name != b"."
+        && name != b".."
+        && !name.contains(&b'#');
+    recordable.then_some(name)
 }
 
 /// Parse a whole program invocation (the line, starting at the program name) into a [`RunSpec`].
@@ -3466,6 +3502,38 @@ mod tests {
 
     /// **`package` takes exactly its three forms** (milestone 198 rung 3a). Every malformed line
     /// is [`PackageVerb::Usage`], so nothing reaches the progenitor that it would have to guess at.
+    /// **`vouch` takes one file and records it by its last component** (DECISIONS §221). A bare
+    /// name is not a file by the prompt's rule, and a name the activation set could not read back
+    /// as itself is refused before anything is sent.
+    #[test]
+    fn vouch_takes_one_path_and_names_it_by_its_last_component() {
+        let Command::Vouch(tail) = parse(b"vouch  installed/unvouched ") else {
+            panic!("`vouch` is not its own command");
+        };
+        assert_eq!(vouch_verb(tail), PackageVerb::Vouch(b"installed/unvouched"));
+        assert_eq!(
+            vouched_name(b"installed/unvouched"),
+            Some(&b"unvouched"[..])
+        );
+        assert_eq!(vouched_name(b"./a.out"), Some(&b"a.out"[..]));
+        for bad in [
+            &b""[..],
+            b"a.out",
+            b"./a b",
+            b"dir/",
+            b"./..",
+            b"./x#y",
+            b"./seventeen-bytes!!",
+        ] {
+            assert_eq!(
+                vouch_verb(bad),
+                PackageVerb::Usage,
+                "{:?}",
+                core::str::from_utf8(bad)
+            );
+        }
+    }
+
     #[test]
     fn package_takes_three_forms_and_nothing_else() {
         let Command::Package(tail) = parse(b"package install  downloads/uptime.nifepkg ") else {

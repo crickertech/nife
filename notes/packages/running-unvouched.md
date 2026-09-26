@@ -40,13 +40,13 @@ Considered and refused:
 |---|---|---|
 | the progenitor | full (it retyped it), receives on it | itself, after `login` is built |
 | `login` | `WRITE`, `GRANT` at slot 22 | the progenitor, into `login`'s unstarted thread |
-| each session `login` builds | `WRITE`, the sixth capability of an `OK` | `login` (`login_protocol::RUN_UNVOUCHED_FOLLOWS`) |
-| the boot prompt | `WRITE` at slot 22 | the progenitor, one provisional line |
+| a session `login` builds for a listed identity | `WRITE`, the sixth capability of an `OK` | `login` (`login_protocol::RUN_UNVOUCHED_FOLLOWS`) |
+| the boot prompt | `WRITE` at slot 22 | the progenitor, one call |
 
-The boot prompt's grant is one call in `crates/system_initializer`, marked provisional. Whether the
-owner's console should hold D2 is an open question
-([who-may-write-the-activation-set.md](../who-may-write-the-activation-set.md)). Deleting that call
-is the whole of the other answer; the gate then refuses as before, and that was run (below).
+The boot prompt's grant is one call in `crates/system_initializer`. calef ruled on 2026-09-26 that
+the boot prompt is the owner's console and keeps it (§221 (the boot prompt is the owner's
+console)). Deleting that call makes the gate refuse as before, and that was run (below). A `login`
+session gets it only when the owner lists its identity ([vouching.md](vouching.md)).
 
 It is retyped after `login`'s build, not before, because that build is where the progenitor's table
 peaks. Held across the peak it would have taken the last free slot. Measured by `script/swish-check`
@@ -94,7 +94,7 @@ own reason:
 | endow the network | `network: REACHED`, `slots held: 0 1 2 10` |
 | remove the boot prompt's grant | `caps` said it would not run; the run was refused |
 
-`login`'s half is a kernel test, `login_tests::login_hands_each_session_the_run_unvouched_capability_and_it_cannot_be_passed_on`.
+`login`'s half is a kernel test, `login_tests::login_hands_a_listed_session_the_run_unvouched_capability_and_it_cannot_be_passed_on`.
 A session's copy reaches the endpoint `login` was given, and its `SEND_CAP` is refused. Delegating
 it with `GRANT` turned that test red: the client's delegation arrived in place of its report.
 
@@ -105,9 +105,8 @@ it with `GRANT` turned that test red: the client's delegation arrived in place o
   (`spawnproto`'s BUGS). Today only the boot prompt holds the spawn endpoint.
 - A holder can send its word early on purpose and let another session's claim through. That is a
   proxy, which no capability system prevents.
-- Only one session exercises D2. No session `login` builds holds a spawn endpoint, so its sixth
-  capability is delivered and proven, not used. `login` gives it to every session; which
-  identities should get it has nothing to read it from yet (`login_protocol`'s BUGS).
+- Only one session exercises D2. No session `login` builds holds a spawn endpoint, so a listed
+  session's sixth capability is delivered and proven, not used.
 - The refused path has no permanent gate. The boot prompt holds D2, so no line at the prompt can be
   refused for want of it; the removal falsification above is the only run of it.
 - A removed program is not unrunnable at a prompt that holds D2. It loses its vouch and runs with

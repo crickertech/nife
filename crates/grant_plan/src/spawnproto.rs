@@ -73,6 +73,12 @@
 //!   the planner as a program name and is refused as "no such program", which is true of the name
 //!   and says nothing about the bytes. Nothing sets the bit alongside `interruptible` or `dir`, and
 //!   the progenitor refuses an interruptible image request if one arrives.
+//! - **Every activation verb is open to whoever holds the spawn endpoint**, including
+//!   [`Activation::Vouch`], which vouches for any bytes at all. That is the owner's authority by
+//!   DECISIONS §221 (the boot prompt is the owner's console), and it is safe only because the boot
+//!   prompt is the one holder. A session given a spawn endpoint would be the owner too. Before any
+//!   session is, the activation verbs need a presentation of their own, the way
+//!   [`RUN_UNVOUCHED_BIT`] has one.
 //! - **A shell that cannot retype a frame mid-request hangs the prompt.** The staging region is
 //!   sized to the image, so this needs a full capability table in the shell, but if it happens the
 //!   progenitor waits for a frame that never comes. Nothing in the ABI lets either side abandon a
@@ -196,6 +202,10 @@ const IMAGE_BIT: u64 = 1 << 39;
 ///   [`Activation::Remove`]'s program name is. The progenitor finds the name's stem in the image's
 ///   catalogue, fetches `<stem>.nifepkg` over the network stack it built at boot, and installs
 ///   what arrived exactly as [`Activation::Install`] installs a file's bytes.
+/// - For [`Activation::Vouch`], word 0 is the executable's length, its frames follow as an
+///   install's do, and then the name it will be recorded under, as one data message packed as
+///   [`Activation::Remove`]'s is. Frames before the name, because the frames are capabilities and
+///   the name is data, and the progenitor stages the one before it reads the other.
 ///
 /// Name: provisional (2026-09-26).
 const ACTIVATION_BIT: u64 = 1 << 40;
@@ -259,6 +269,22 @@ pub enum Activation {
     /// program is told what to do)). The cost is an HTTP reader (`http_response`) in the
     /// progenitor; notes/packages.md weighs it.
     Fetch = 4,
+    /// **The owner vouches for these bytes** (DECISIONS §221 (the boot prompt is the owner's
+    /// console), ruling 1, and §195 (a reviewed recipe vouches for a package) clause 3: the owner
+    /// may vouch for a digest no source carries). The progenitor hashes its own copy and writes a
+    /// new generation whose entry for the name is that digest, marked
+    /// `activation_set::OWNER` in place of a package, so
+    /// `package rollback` undoes it like any other edit. The bytes are not copied: a digest vouches
+    /// for itself wherever the file is. They must parse as an executable, or nothing is written.
+    ///
+    /// **Who may ask** is whoever holds the spawn endpoint, which is the boot prompt and nothing
+    /// else; §221 ruled that whoever holds that prompt is the owner. A session `login` builds holds
+    /// no spawn endpoint and cannot reach its root to write `activation/` by hand either. The day a
+    /// session is given a spawn endpoint, this verb (and install, remove and rollback with it) needs
+    /// an authority of its own; the BUGS above say so.
+    ///
+    /// Name: provisional (milestone 198, lane `milestone/198-owner-console`, 2026-09-26).
+    Vouch = 5,
 }
 
 impl Activation {
@@ -268,15 +294,20 @@ impl Activation {
             2 => Some(Self::Remove),
             3 => Some(Self::Rollback),
             4 => Some(Self::Fetch),
+            5 => Some(Self::Vouch),
             _ => None,
         }
     }
 }
 
-/// Build an activation request. `len` is the package's length for [`Activation::Install`] and
-/// ignored otherwise.
+/// Build an activation request. `len` is the file's length for [`Activation::Install`] and
+/// [`Activation::Vouch`], whose frames follow, and ignored otherwise.
 pub fn activation_request(verb: Activation, len: u64) -> (u64, u64, u64) {
-    let w0 = if verb == Activation::Install { len } else { 0 };
+    let w0 = if matches!(verb, Activation::Install | Activation::Vouch) {
+        len
+    } else {
+        0
+    };
     (w0, verb as u64, ACTIVATION_BIT)
 }
 
@@ -319,6 +350,9 @@ pub enum ActivationStatus {
     /// status other than 200, a response `http_response` refuses, a truncated body, or one larger
     /// than [`IMAGE_MAX_PAGES`]. Nothing was installed.
     FetchFailed = 9,
+    /// [`Activation::Vouch`] was sent bytes that do not parse as an executable, or a name the
+    /// activation set cannot record. Nothing was written.
+    NotExecutable = 10,
 }
 
 impl ActivationStatus {
@@ -335,6 +369,7 @@ impl ActivationStatus {
             7 => Self::NoSuchPackage,
             8 => Self::NoNetwork,
             9 => Self::FetchFailed,
+            10 => Self::NotExecutable,
             _ => Self::Unknown,
         }
     }
@@ -707,12 +742,13 @@ mod tests {
             Activation::Remove,
             Activation::Rollback,
             Activation::Fetch,
+            Activation::Vouch,
         ] {
             let (w0, w1, w2) = activation_request(verb, 90_491);
             assert_eq!(activation(w1, w2), Some(Some(verb)));
             assert_eq!(
                 w0,
-                if verb == Activation::Install {
+                if matches!(verb, Activation::Install | Activation::Vouch) {
                     90_491
                 } else {
                     0
@@ -731,6 +767,7 @@ mod tests {
             ActivationStatus::NoSuchPackage,
             ActivationStatus::NoNetwork,
             ActivationStatus::FetchFailed,
+            ActivationStatus::NotExecutable,
         ] {
             let (w0, w1, _) = activation_reply(status, 7);
             assert_eq!(ActivationStatus::from_word(w0), status);

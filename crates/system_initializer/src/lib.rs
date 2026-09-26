@@ -170,7 +170,7 @@
 //! 2026-09-26 by DECISIONS §219 (how the shell names an installed program to the spawner), from
 //! "runs nothing it cannot vouch for": unvouched bytes a caller sends may run with the caller's
 //! grants and the clock and configuration pages, but only for a session holding §219's D2
-//! capability (`Channels::run_unvouched`; the boot prompt's grant of it is provisional). That is
+//! capability (`Channels::run_unvouched`; the boot prompt holds it by DECISIONS §221). That is
 //! `spawn_service`'s image path. Everything this section describes below is the archive's, where
 //! the rule still means refusal: a digest that does not match is a refusal, and so is a
 //! name the table does not mention, for the reason the kernel's empty trust root is refused: a
@@ -2091,12 +2091,12 @@ pub fn boot(
     // watermark must move for **jobs only**, or the LIFO return-of-pages (§16) never fires. A scratch
     // page table carved out of the same region between a job's split and its reap would sit above
     // that job's run, so the reclaim would find it is not the top and give back nothing.
-    // **The boot prompt holds the run-unvouched capability. PROVISIONAL**, and the one line in this
-    // file that decides it (DECISIONS §219 gate D2). Whether the machine owner's console should hold
-    // it at all is an architect's open question (notes/who-may-write-the-activation-set.md, option
-    // A against B), and deleting this call is the whole of the other answer: the prompt then
-    // refuses every unvouched image, as it did before D2 existed. `WRITE` alone, so the shell can
-    // present it and can hand it to nothing it spawns.
+    // **The boot prompt holds the run-unvouched capability** (DECISIONS §219 gate D2), and this is
+    // the one line in this file that decides it. calef ruled it 2026-09-26 (DECISIONS §221 (the
+    // boot prompt is the owner's console), ruling 1): the boot prompt is the owner's root console,
+    // and whoever holds it is the owner, as with single-user or recovery mode elsewhere. Deleting
+    // this call makes the prompt refuse every unvouched image, as it did before D2 existed.
+    // `WRITE` alone, so the shell can present it and can hand it to nothing it spawns.
     let run_unvouched =
         run_unvouched.unwrap_or_else(|| must(retype_obj(ut, abi::objtype::RENDEZVOUS)));
     must_ok(place_at(
@@ -3754,11 +3754,16 @@ struct Activating {
 ///   the network stack this process built at boot ([`fetch`]), and what arrived is installed as
 ///   **Install** installs a file's bytes, with one more check: it must be the package asked for
 ///   (`package_archive::installable_as`).
+/// - **Vouch** (DECISIONS §221 (the boot prompt is the owner's console)): the executable's frames
+///   are staged as an install's are, and a new generation records this process's hash of its own
+///   copy under the name that follows, marked `activation_set::OWNER`. Nothing is placed: the
+///   digest vouches for the bytes wherever they are, and a rollback undoes it.
 ///
-/// Each of the four ends in [`FsCalls::commit`], so the only thing that ever changes what runs is
-/// one rename of `current`. **Who may do this** is the shell today, because it is the one holder of
-/// the spawn endpoint, and so is who may *write* `activation/` directly: see `notes/packages.md`'s
-/// BUGS and the proposal it links for the hole that leaves.
+/// Each of the five ends in [`FsCalls::commit`], so the only thing that ever changes what runs is
+/// one rename of `current`. **Who may do this** is whoever holds the spawn endpoint, which is the
+/// boot prompt alone, and DECISIONS §221 ruled that whoever holds that prompt is the machine's
+/// owner, who may also write `activation/` directly. `spawnproto`'s BUGS say what changes the day
+/// another session holds a spawn endpoint.
 fn activate(
     verb: Option<spawnproto::Activation>,
     w0: u64,
@@ -3769,13 +3774,17 @@ fn activate(
     // The request's own trailing messages come off the endpoint first, whatever happens next, so a
     // refusal never leaves words behind that the next request would read as its own.
     let staging = match verb {
-        Some(Activation::Install) => {
+        Some(Activation::Install | Activation::Vouch) => {
             receive_image(a.spawn_ep, w0, a.own_ut, a.jobs_ut, true).map(|st| (st, w0))
         }
         _ => None,
     };
     let mut named = [0u8; filesystem_protocol::grant::MAX_NAME];
-    let named_len = if matches!(verb, Some(Activation::Remove | Activation::Fetch)) {
+    // A vouch's name follows its frames, which `receive_image` has just taken.
+    let named_len = if matches!(
+        verb,
+        Some(Activation::Remove | Activation::Fetch | Activation::Vouch)
+    ) {
         let (lo, hi, len) = recv(a.spawn_ep);
         filesystem_protocol::grant::unpack_name(lo, hi, len as usize, &mut named)
     } else {
@@ -3869,7 +3878,7 @@ fn edit(
     staging: Option<(u64, u64)>,
     wanted: Option<&str>,
     catalogue: &str,
-    removed: &[u8],
+    named: &[u8],
 ) -> (spawnproto::ActivationStatus, u32) {
     use spawnproto::{Activation, ActivationStatus as S};
     // The next generation's number: the first one above the live generation with no file. After a
@@ -3896,12 +3905,42 @@ fn edit(
             (S::Done, back)
         }
         Activation::Remove => {
-            let Ok(program) = core::str::from_utf8(removed) else {
+            let Ok(program) = core::str::from_utf8(named) else {
                 return (S::NotInstalled, live);
             };
             let n = match activation_set::without_entry(table, program, &mut new) {
                 Ok(n) => n,
                 Err(activation_set::Error::NotInstalled) => return (S::NotInstalled, live),
+                Err(_) => return (S::StoreFailed, live),
+            };
+            let m = next();
+            if !files.commit(act, m, Some(&new[..n])) {
+                return (S::StoreFailed, live);
+            }
+            (S::Done, m)
+        }
+        // **The owner's vouch** (DECISIONS §221 ruling 1; §195 clause 3). The digest is this
+        // process's hash of its own copy, the one a spawn of the same file computes, so the entry
+        // is found by the next run of those bytes and by nothing else.
+        Activation::Vouch => {
+            let Some((_, len)) = staging else {
+                return (S::Unknown, live);
+            };
+            let bytes = staged_image(len);
+            let Ok(program) = core::str::from_utf8(named) else {
+                return (S::NotExecutable, live);
+            };
+            if elf::Elf::parse(bytes).is_err() {
+                return (S::NotExecutable, live);
+            }
+            let entry = activation_set::Entry {
+                program,
+                package: activation_set::OWNER,
+                digest: measured_boot::sha256(bytes),
+            };
+            let n = match activation_set::with_entry(table, &entry, &mut new) {
+                Ok(n) => n,
+                Err(activation_set::Error::BadName) => return (S::NotExecutable, live),
                 Err(_) => return (S::StoreFailed, live),
             };
             let m = next();
