@@ -46,7 +46,7 @@ the search: this kernel puts almost everything behind a ranked interrupt-safe lo
 (DECISIONS §9, [locking.md](locking.md)). What is left, from a grep for every compare-exchange, swap
 and fetch-op outside test code:
 
-- `crates/work_steal_slot` (new, milestone 80): the work-steal request slot. The pilot.
+- `crates/work_steal_slot` (new, milestone 80 (loom: the hand-rolled atomic protocols, model-checked)): the work-steal request slot. The pilot.
 - `crates/clock_protocol`: the clock page's seqlock. Cross-*address-space*, hand-rolled, with an
   explicit fence in the reader. This one the roadmap did not name, and it is where the bug was.
 - `kernel/src/smp.rs`: the boot roster. `HWID`/`STARTABLE` written relaxed, then `ROSTER` stored
@@ -188,7 +188,7 @@ broken.
 
 ### `crates/memory_regions`, the untyped region claim (2026-08-18)
 
-The fifth extraction, milestone 135, and the first on the memory-reclamation path. It exists
+The fifth extraction, milestone 135 (the region claim, under loom), and the first on the memory-reclamation path. It exists
 because a real double free landed there and its fix could not be gated: `untyped::destroy` checked
 the region under the `REGIONS` lock, released it, revoked, freed every page, and removed the table
 slot last, so two callers holding a name for one region could each pass the refusal check inside
@@ -436,7 +436,7 @@ from outside the crate, and cannot be duplicated. They carry explicit error code
 at all, including a typo, which is how a compile-fail test rots into an assertion nobody has watched
 fail.
 
-Milestone 113's Kani shim is not the mechanism here, and it is worth knowing why, because 135's
+The Kani shim of milestone 113 (the proofs' own unsafe code is ungated) is not the mechanism here, and it is worth knowing why, because 135's
 own `BUGS` section proposed it. 113 built `helpers/kani-lint-shim/` so clippy could compile code
 written against Kani's intrinsics; loom needs nothing of the sort, being an ordinary dependency
 behind `[target.'cfg(loom)'.dependencies]`, so the same benefit costs the one flag this script
@@ -503,7 +503,7 @@ evaluates `cfg(loom)` as false for every real target, so:
   correct *given* mutual exclusion, and says nothing about whether `IrqSafeMutex` provides it or
   whether the rank is right. That is `script/lint`'s rank check and [locking.md](locking.md), and
   it is the same division `thread_wake_handshake` records for `SCHED`.
-- The gate on `untyped.rs` is narrower than the property it protects. Milestone 136 closed the
+- The gate on `untyped.rs` is narrower than the property it protects. Milestone 136 (one decision path, and a gate that keeps it that way) closed the
   hole this bullet used to name (see *A lift is only worth what its caller does* above), and what it
   buys is bounded: the free-site pin covers `kernel/src/memory_region.rs` only, so region pages freed from
   another kernel module are not caught; the warrant is line order rather than dataflow; and
