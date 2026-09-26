@@ -59,7 +59,8 @@
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68 (code-quality gates) tracks
-// (DECISIONS §107, `missing_docs` moves to `workspace.lints.rust`): each `[[bin]]` is its own crate root with one `_start`.
+// (DECISIONS §107 (`missing_docs` moves to `workspace.lints.rust`)): each `[[bin]]` is its own
+// crate root with one `_start`.
 #![allow(missing_docs)]
 #![no_main]
 
