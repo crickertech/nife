@@ -426,6 +426,9 @@ pub enum Refusal {
     /// catalogued package can reach this, so it means the catalogue vouched for a file the producer
     /// would never have written.
     MemberMismatch,
+    /// A package fetched by name ([`installable_as`]) is not the package that was asked for, though
+    /// the catalogue may vouch for it: a source serving `uptime` when asked for `greeting`.
+    NotRequested,
 }
 
 /// **The installer's whole decision, on bytes alone** (milestone 198 rung 3a): may this package be
@@ -471,6 +474,52 @@ pub fn installable<'a>(catalogue: &str, bytes: &'a [u8]) -> Result<Installable<'
         bytes: member,
         digest,
     })
+}
+
+/// **The catalogue's stem for a package asked for by name** (milestone 198 (a package manager)
+/// rung 3a's fetch): the first line whose stem is `<name>-<version>-<architecture>`, for a version
+/// with no hyphen in it. `None` when the image vouches for no package of that name on this
+/// architecture, which is the refusal a fetch gives before it opens a connection.
+///
+/// The catalogue is the image's own ([`CATALOGUE`]), so the answer is what the image vouches for
+/// and never what a package source offers. A name with a hyphen in it is looked up the same way;
+/// a *version* with one cannot be told from the name before it and is not matched.
+///
+/// # BUGS
+///
+/// The first matching line wins. The producer writes one line per stem, but two versions of one
+/// package would be two stems, and nothing here orders versions.
+pub fn catalogued_stem<'c>(catalogue: &'c str, name: &str, architecture: &str) -> Option<&'c str> {
+    if name.is_empty() {
+        return None;
+    }
+    measured_boot::manifest_entries(catalogue)
+        .flatten()
+        .map(|(stem, _)| stem)
+        .find(|stem| {
+            stem.strip_suffix(architecture)
+                .and_then(|s| s.strip_suffix('-'))
+                .and_then(|s| s.strip_prefix(name))
+                .and_then(|s| s.strip_prefix('-'))
+                .is_some_and(|version| !version.is_empty() && !version.contains('-'))
+        })
+}
+
+/// **[`installable`], for bytes fetched by name**: the package must also be the one whose stem was
+/// asked for. A source can serve a *different* package the catalogue vouches for, and
+/// [`installable`] alone would install it; the stem is checked first, so such a package is refused
+/// before it is hashed.
+pub fn installable_as<'a>(
+    catalogue: &str,
+    stem: &str,
+    bytes: &'a [u8],
+) -> Result<Installable<'a>, Refusal> {
+    let package = Package::parse(bytes).map_err(|_| Refusal::Unreadable)?;
+    let mut buf = [0u8; STEM_LEN];
+    if package.stem(&mut buf) != stem {
+        return Err(Refusal::NotRequested);
+    }
+    installable(catalogue, bytes)
 }
 
 impl<'a> Package<'a> {
@@ -789,6 +838,50 @@ mod tests {
         assert_eq!(
             installable(&catalogue_for(&file), &file),
             Err(Refusal::NoProgram)
+        );
+    }
+
+    /// **A name finds its package's stem on this architecture and nowhere else** (rung 3a's
+    /// fetch). A prefix of another package's name is not that package, and another
+    /// architecture's line is not this machine's.
+    #[test]
+    fn a_name_finds_its_stem_in_the_catalogue() {
+        let d = "0".repeat(64);
+        let catalogue = std::format!(
+            "uptime-0.1.0-aarch64 {d}\ngreeting-0.1.0-riscv64 {d}\ngreeting-0.1.0-aarch64 {d}\n"
+        );
+        assert_eq!(
+            catalogued_stem(&catalogue, "greeting", "aarch64"),
+            Some("greeting-0.1.0-aarch64")
+        );
+        assert_eq!(
+            catalogued_stem(&catalogue, "uptime", "aarch64"),
+            Some("uptime-0.1.0-aarch64")
+        );
+        assert_eq!(catalogued_stem(&catalogue, "uptime", "riscv64"), None);
+        assert_eq!(catalogued_stem(&catalogue, "greet", "aarch64"), None);
+        assert_eq!(catalogued_stem(&catalogue, "", "aarch64"), None);
+        assert_eq!(catalogued_stem(&catalogue, "nosuch", "aarch64"), None);
+    }
+
+    /// **Bytes fetched by name must be the package asked for**, even when the catalogue vouches
+    /// for them: the source answered `greeting` with a genuine `uptime`.
+    #[test]
+    fn a_vouched_package_that_was_not_asked_for_is_refused() {
+        let file = written(&[("uptime", b"\x7fELF")]);
+        let catalogue = catalogue_for(&file);
+        assert!(installable_as(&catalogue, "uptime-0.1.0-aarch64", &file).is_ok());
+        assert_eq!(
+            installable_as(&catalogue, "greeting-0.1.0-aarch64", &file),
+            Err(Refusal::NotRequested)
+        );
+        // And the digest is still checked when the stem is right.
+        let mut tampered = file.clone();
+        let last = tampered.len() - 1;
+        tampered[last] ^= 1;
+        assert_eq!(
+            installable_as(&catalogue, "uptime-0.1.0-aarch64", &tampered),
+            Err(Refusal::NotCatalogued)
         );
     }
 

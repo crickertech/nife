@@ -1935,6 +1935,16 @@ fn package(nav: &mut Nav, tail: &[u8]) {
             }
             (r0, r1)
         }
+        // The name only: the progenitor fetches the bytes itself, over the stack it built at boot,
+        // so this shell sends no frames and needs no network of its own.
+        grant_plan::PackageVerb::Fetch(name) => {
+            let (w0, w1, w2) = spawnproto::activation_request(Activation::Fetch, 0);
+            send(SPAWN, w0, w1, w2);
+            let (lo, hi) = filesystem_protocol::grant::pack_name(name);
+            send(SPAWN, lo, hi, name.len() as u64);
+            let (r0, r1, _) = recv(RESULT);
+            (r0, r1)
+        }
         grant_plan::PackageVerb::Remove(name) => {
             let (w0, w1, w2) = spawnproto::activation_request(Activation::Remove, 0);
             send(SPAWN, w0, w1, w2);

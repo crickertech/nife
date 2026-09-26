@@ -952,6 +952,7 @@ dependencies = [
  "entropy_protocol",
  "filesystem_protocol",
  "grant_plan",
+ "http_response",
  "line_editor",
  "login_protocol",
  "measured_boot",

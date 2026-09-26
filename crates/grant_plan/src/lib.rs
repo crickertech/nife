@@ -2186,8 +2186,15 @@ pub fn parse(line: &[u8]) -> Command<'_> {
 /// **What `package` was asked to do** (milestone 198 rung 3a's installer). Provisional words.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum PackageVerb<'a> {
-    /// `package install <path>`: the path names a package file this shell can read.
+    /// `package install <path>`: the path names a package file this shell can read. An operand
+    /// with a `/` in it, by the prompt's rule for a command word (DECISIONS §219 (how the shell
+    /// names an installed program to the spawner)): a word with a `/` is a file.
     Install(&'a [u8]),
+    /// `package install <name>`: an operand with no `/` names a package the image's catalogue
+    /// vouches for, which the progenitor fetches and installs (milestone 198 rung 3a's fetch).
+    /// At most sixteen bytes, for [`PackageVerb::Remove`]'s reason. A package file in the
+    /// current directory is `./<file>`.
+    Fetch(&'a [u8]),
     /// `package remove <program>`: the name an installed program is recorded under.
     Remove(&'a [u8]),
     /// `package rollback`: the generation below the live one becomes live.
@@ -2205,7 +2212,8 @@ pub fn package_verb(tail: &[u8]) -> PackageVerb<'_> {
     let operand = trim(rest);
     let one_word = !operand.is_empty() && !operand.iter().any(u8::is_ascii_whitespace);
     match verb {
-        b"install" if one_word => PackageVerb::Install(operand),
+        b"install" if one_word && operand.contains(&b'/') => PackageVerb::Install(operand),
+        b"install" if one_word && operand.len() <= 16 => PackageVerb::Fetch(operand),
         b"remove" if one_word && operand.len() <= 16 => PackageVerb::Remove(operand),
         b"rollback" if operand.is_empty() => PackageVerb::Rollback,
         _ => PackageVerb::Usage,
@@ -3240,12 +3248,22 @@ mod tests {
             PackageVerb::Remove(b"uptime")
         );
         assert_eq!(package_verb(b"rollback"), PackageVerb::Rollback);
+        // No `/`, so a name to fetch rather than a file; `./` makes a file in this directory one.
+        assert_eq!(
+            package_verb(b"install greeting"),
+            PackageVerb::Fetch(b"greeting")
+        );
+        assert_eq!(
+            package_verb(b"install ./greeting.nifepkg"),
+            PackageVerb::Install(b"./greeting.nifepkg")
+        );
         for bad in [
             &b""[..],
             b"install",
             b"install a b",
             b"remove",
             b"remove a-name-longer-than-sixteen",
+            b"install a-name-longer-than-sixteen",
             b"rollback 3",
             b"upgrade uptime",
         ] {

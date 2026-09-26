@@ -2345,6 +2345,7 @@ fn spawn_service(
                     jobs_ut,
                     fs,
                     catalogue,
+                    network,
                 },
                 &mut fs_mapped,
             );
@@ -3431,6 +3432,9 @@ struct Activating {
     jobs_ut: u64,
     fs: Option<Fs>,
     catalogue: &'static str,
+    /// The network stack's endpoint, for [`spawnproto::Activation::Fetch`]. `None` on a boot with
+    /// no stack, and then a fetch is refused as [`spawnproto::ActivationStatus::NoNetwork`].
+    network: Option<u64>,
 }
 
 /// **Serve one activation request** (milestone 198 (a package manager) rung 3a's installer,
@@ -3445,8 +3449,12 @@ struct Activating {
 /// - **Remove**: a new generation without the program. Its bytes stay where they are, so a rollback
 ///   can bring it back; nothing collects them yet.
 /// - **Rollback**: `current` names the generation one below the live one. Nothing else is written.
+/// - **Fetch**: the name's stem is looked up in the image's catalogue, the package is fetched over
+///   the network stack this process built at boot ([`fetch`]), and what arrived is installed as
+///   **Install** installs a file's bytes, with one more check: it must be the package asked for
+///   (`package_archive::installable_as`).
 ///
-/// Each of the three ends in [`FsCalls::commit`], so the only thing that ever changes what runs is
+/// Each of the four ends in [`FsCalls::commit`], so the only thing that ever changes what runs is
 /// one rename of `current`. **Who may do this** is the shell today, because it is the one holder of
 /// the spawn endpoint, and so is who may *write* `activation/` directly: see `notes/packages.md`'s
 /// BUGS and the proposal it links for the hole that leaves.
@@ -3465,13 +3473,18 @@ fn activate(
         }
         _ => None,
     };
-    let mut removed = [0u8; filesystem_protocol::grant::MAX_NAME];
-    let removed_len = if verb == Some(Activation::Remove) {
+    let mut named = [0u8; filesystem_protocol::grant::MAX_NAME];
+    let named_len = if matches!(verb, Some(Activation::Remove | Activation::Fetch)) {
         let (lo, hi, len) = recv(a.spawn_ep);
-        filesystem_protocol::grant::unpack_name(lo, hi, len as usize, &mut removed)
+        filesystem_protocol::grant::unpack_name(lo, hi, len as usize, &mut named)
     } else {
         0
     };
+    let named = &named[..named_len];
+    // What a fetch holds until the end of this request: the page it traded bytes with the stack
+    // through, and the staged package. Destroyed in the reverse of the order they were split, below.
+    let mut socket_region = None;
+    let mut fetched = None;
 
     let outcome = (|| {
         let Some(verb) = verb else {
@@ -3491,6 +3504,24 @@ fn activate(
             // A live table that is not text is a table nothing can edit, the same answer as one
             // that cannot be read.
             Ok((live, n)) => match core::str::from_utf8(&old[..n]) {
+                // The fetch comes after the live generation is read, so a refusal still names
+                // what is in force, and before anything is written.
+                Ok(table) if verb == Activation::Fetch => {
+                    match fetch(a, named, &mut socket_region, &mut fetched) {
+                        Ok(stem) => edit(
+                            &files,
+                            act_h,
+                            Activation::Install,
+                            live,
+                            table,
+                            fetched,
+                            Some(stem),
+                            a.catalogue,
+                            named,
+                        ),
+                        Err(status) => (status, live),
+                    }
+                }
                 Ok(table) => edit(
                     &files,
                     act_h,
@@ -3498,8 +3529,9 @@ fn activate(
                     live,
                     table,
                     staging,
+                    None,
                     a.catalogue,
-                    &removed[..removed_len],
+                    named,
                 ),
                 Err(_) => (S::StoreFailed, live),
             },
@@ -3508,9 +3540,19 @@ fn activate(
         answer
     })();
 
-    if let Some((st, _)) = staging {
-        supervision_protocol::memory_region_destroy(st);
-        cap_delete(st);
+    // The staged package first, then the socket page, because a region gives its pages back to
+    // the job pool only when it is the most recent carve (`memory_regions`' `return_to_parent`).
+    // Destroying the socket page's region also revokes it out of `net_stack`'s address space.
+    for region in [
+        staging.map(|(st, _)| st),
+        fetched.map(|(st, _)| st),
+        socket_region,
+    ]
+    .into_iter()
+    .flatten()
+    {
+        supervision_protocol::memory_region_destroy(region);
+        cap_delete(region);
     }
     outcome
 }
@@ -3524,6 +3566,7 @@ fn edit(
     live: u32,
     table: &str,
     staging: Option<(u64, u64)>,
+    wanted: Option<&str>,
     catalogue: &str,
     removed: &[u8],
 ) -> (spawnproto::ActivationStatus, u32) {
@@ -3539,6 +3582,8 @@ fn edit(
     };
     let mut new = [0u8; PAGE_BYTES];
     match verb {
+        // Never reaches here: [`activate`] fetches, then edits as an `Install` of what arrived.
+        Activation::Fetch => (S::Unknown, live),
         Activation::Rollback => {
             if live <= 1 {
                 return (S::NoEarlier, live);
@@ -3569,7 +3614,12 @@ fn edit(
                 return (S::Unknown, live);
             };
             let bytes = staged_image(len);
-            let got = match package_archive::installable(catalogue, bytes) {
+            let decided = match wanted {
+                // Fetched by name: it must also be the package asked for.
+                Some(stem) => package_archive::installable_as(catalogue, stem, bytes),
+                None => package_archive::installable(catalogue, bytes),
+            };
+            let got = match decided {
                 Ok(got) => got,
                 Err(package_archive::Refusal::NoProgram) => return (S::NoProgram, live),
                 Err(_) => return (S::NotCatalogued, live),
@@ -3625,6 +3675,214 @@ fn edit(
             (S::Done, m)
         }
     }
+}
+
+/// Where the progenitor maps the page it trades bytes with `net_stack` through during a fetch.
+/// Clear of [`ACTIVATION_FS_VA`] (one page) and of [`IMAGE_STAGING_VA`], where the body goes.
+/// Every page mapped here comes from a region [`activate`] destroys at the end of the request, so
+/// the window is empty again for the next fetch.
+const FETCH_SOCKET_VA: u64 = 0x0f50_0000;
+
+/// **The socket number the progenitor fetches on**: the last one, because every program at the
+/// prompt that dials out uses 0 (`network_echo_client`). The contract's socket numbers are shared by
+/// every client of one stack (milestone 590 (the booted system starts its network stack)'s BUGS),
+/// so this is a convention, not a partition; notes/packages.md's BUGS says what that leaves open.
+const FETCH_SID: u64 = socket_protocol::MAX_SOCKETS as u64 - 1;
+
+/// This machine's architecture as a package stem spells it.
+const ARCHITECTURE: &str = if cfg!(target_arch = "aarch64") {
+    "aarch64"
+} else if cfg!(target_arch = "riscv64") {
+    "riscv64"
+} else {
+    "x86_64"
+};
+
+/// **Fetch the package `name` over the network**, for [`spawnproto::Activation::Fetch`]
+/// (milestone 198 (a package manager) rung 3a's fetch). Returns the stem the image's catalogue
+/// names it by, with the package staged at [`IMAGE_STAGING_VA`] and its region and length in
+/// `staging`, exactly where [`receive_image`] leaves a file's bytes; [`edit`] then installs it.
+///
+/// In order, and the order is the argument:
+///
+/// 1. **The catalogue first.** A name the image vouches for no package by is refused before a
+///    connection is opened, so a person cannot make this process fetch anything the image would
+///    not install, and the answer to a typo costs no network.
+/// 2. **One page shared with the stack**, retyped from a region of its own and handed over with
+///    `OP_ATTACH_PAGE_FRAME` on [`FETCH_SID`]. The region is destroyed when the request ends, which
+///    revokes the page out of the stack too: nothing about a fetch outlives it.
+/// 3. **`GET /<stem>.nifepkg`** from the package source (`socket_protocol::fixture`), read through
+///    `http_response`, which holds only the head and refuses what it cannot read exactly. The body
+///    lands in pages split once the declared length is known and found to fit
+///    [`spawnproto::IMAGE_MAX_PAGES`].
+///
+/// **Nothing here decides whether the bytes may be installed.** A body that arrived whole is only
+/// bytes; [`edit`] checks them against the catalogue as it checks a file a person pointed at, which
+/// is why plain HTTP is enough on this rung (DECISIONS §195 (a reviewed recipe vouches for a
+/// package)). What this adds to the progenitor is a parser of network input *before* that check:
+/// `http_response`'s head reader, a fixed 2 KiB buffer, host-tested. notes/packages.md weighs it
+/// against a fetching program.
+fn fetch(
+    a: &Activating,
+    name: &[u8],
+    socket_region: &mut Option<u64>,
+    staging: &mut Option<(u64, u64)>,
+) -> Result<&'static str, spawnproto::ActivationStatus> {
+    use socket_protocol::fixture::{PACKAGE_PEER_HOST, PACKAGE_PEER_IP, PACKAGE_PEER_PORT};
+    use socket_protocol::*;
+    use spawnproto::ActivationStatus as S;
+
+    let stem = core::str::from_utf8(name)
+        .ok()
+        .and_then(|name| package_archive::catalogued_stem(a.catalogue, name, ARCHITECTURE))
+        .ok_or(S::NoSuchPackage)?;
+    let stack = a.network.ok_or(S::NoNetwork)?;
+
+    let region = memory_region_split(a.jobs_ut, 1).map_err(|()| S::FetchFailed)?;
+    *socket_region = Some(region);
+    let page = retype_page_frame(region).map_err(|()| S::FetchFailed)?;
+    // SAFETY: `invoke` is the syscall; the page is ours and fresh, the window is clear (see
+    // FETCH_SOCKET_VA), and the page tables come from our own budget.
+    let mapped = unsafe { invoke(page, abi::page_frame::MAP, FETCH_SOCKET_VA, 1, a.own_ut) } == 0;
+    let attached = mapped
+        && user_mode_runtime::send_cap(
+            stack,
+            page,
+            abi::rights::READ | abi::rights::WRITE,
+            req(OP_ATTACH_PAGE_FRAME, FETCH_SID),
+        ) >= 0;
+    // The mapping and the stack's copy outlive this capability, and the slot is what is scarce.
+    cap_delete(page);
+    if !attached {
+        return Err(S::FetchFailed);
+    }
+    let window = |off: u64| (FETCH_SOCKET_VA + off) as *mut u8;
+
+    if call(stack, req(OP_OPEN_TCP, FETCH_SID), 0).0 != REP_OK {
+        return Err(S::FetchFailed);
+    }
+    let got = (|| {
+        // SAFETY: (and for every access through `window` below) the page is mapped read/write at
+        // FETCH_SOCKET_VA for the whole of this request, and the stack writes it only while this
+        // process is blocked in a `CALL` to it.
+        unsafe {
+            core::ptr::copy_nonoverlapping(PACKAGE_PEER_IP.as_ptr(), window(OFF_DST_IP), 4);
+            core::ptr::copy_nonoverlapping(
+                PACKAGE_PEER_PORT.to_le_bytes().as_ptr(),
+                window(OFF_DST_PORT),
+                2,
+            );
+        }
+        if call(stack, req(OP_CONNECT, FETCH_SID), 0).0 != CONNECT_ESTABLISHED {
+            return Err(S::FetchFailed);
+        }
+        let mut path = [0u8; 1 + package_archive::STEM_LEN + 8];
+        let mut at = 0;
+        for part in ["/", stem, ".nifepkg"] {
+            path[at..at + part.len()].copy_from_slice(part.as_bytes());
+            at += part.len();
+        }
+        let path = core::str::from_utf8(&path[..at]).map_err(|_| S::FetchFailed)?;
+        let mut request = [0u8; 160];
+        let n = http_response::get_request(PACKAGE_PEER_HOST, path, &mut request)
+            .ok_or(S::FetchFailed)?;
+        // SAFETY: as above; `n` is at most 160, well inside the payload area.
+        unsafe { core::ptr::copy_nonoverlapping(request.as_ptr(), window(OFF_PAYLOAD), n) };
+        if call(stack, req(OP_SEND, FETCH_SID), n as u64).0 != n as u64 {
+            return Err(S::FetchFailed);
+        }
+        receive_body(a, stack, staging)
+    })();
+    // Closed before the answer is judged, so a failed fetch still gives the socket back.
+    let _ = call(stack, req(OP_CLOSE, FETCH_SID), 0);
+    got.map(|()| stem)
+}
+
+/// The response half of [`fetch`]: read until `http_response` says the body is whole, splitting the
+/// staging region once the head has declared a length that fits, and copying each read's body into
+/// it. `Ok` only for a complete `200` whose body is non-empty and fits an image.
+fn receive_body(
+    a: &Activating,
+    stack: u64,
+    staging: &mut Option<(u64, u64)>,
+) -> Result<(), spawnproto::ActivationStatus> {
+    use socket_protocol::*;
+    use spawnproto::ActivationStatus as S;
+    let max = spawnproto::IMAGE_MAX_PAGES * spawnproto::IMAGE_PAGE;
+    let mut response = http_response::Response::new();
+    let mut filled = 0u64;
+    while !response.is_complete() {
+        let (n, _) = call(stack, req(OP_RECV, FETCH_SID), 0);
+        if n == 0 || n > DATA_MAX as u64 {
+            // The peer went away, or the stack failed, before the body was whole.
+            return Err(S::FetchFailed);
+        }
+        // SAFETY: the stack just wrote `n` bytes at OFF_PAYLOAD of the page mapped at
+        // FETCH_SOCKET_VA, and it does not write it again until this process calls it.
+        let read = unsafe {
+            core::slice::from_raw_parts((FETCH_SOCKET_VA + OFF_PAYLOAD) as *const u8, n as usize)
+        };
+        let body = response.feed(read).map_err(|_| S::FetchFailed)?;
+        if response.status().is_some_and(|s| s != 200) {
+            return Err(S::FetchFailed);
+        }
+        if staging.is_none()
+            && let Some(len) = response.content_length()
+        {
+            if len == 0 || len > max {
+                return Err(S::FetchFailed);
+            }
+            *staging = Some((stage_pages(a, len)?, len));
+        }
+        if !body.is_empty() {
+            // `feed` hands back no more body than the head declared, and the staging region was
+            // sized from that declaration, so this copy stays inside it.
+            // SAFETY: `stage_pages` mapped `image_pages(len)` pages read/write from
+            // IMAGE_STAGING_VA, and `filled + body.len()` is at most `len`.
+            unsafe {
+                core::ptr::copy_nonoverlapping(
+                    body.as_ptr(),
+                    (IMAGE_STAGING_VA + filled) as *mut u8,
+                    body.len(),
+                );
+            }
+            filled += body.len() as u64;
+        }
+    }
+    Ok(())
+}
+
+/// Split a staging region for `len` bytes and map every page of it at [`IMAGE_STAGING_VA`], as
+/// [`receive_image`] does for a caller's frames. The region, or `FetchFailed` with nothing held.
+fn stage_pages(a: &Activating, len: u64) -> Result<u64, spawnproto::ActivationStatus> {
+    let pages = spawnproto::image_pages(len);
+    let st = memory_region_split(a.jobs_ut, pages)
+        .map_err(|()| spawnproto::ActivationStatus::FetchFailed)?;
+    for i in 0..pages {
+        let mapped = match retype_page_frame(st) {
+            Ok(page) => {
+                // SAFETY: as in `receive_image`: the page is ours, fresh, and mapped read/write.
+                let ok = unsafe {
+                    invoke(
+                        page,
+                        abi::page_frame::MAP,
+                        IMAGE_STAGING_VA + i * spawnproto::IMAGE_PAGE,
+                        1,
+                        a.own_ut,
+                    )
+                } == 0;
+                cap_delete(page);
+                ok
+            }
+            Err(()) => false,
+        };
+        if !mapped {
+            supervision_protocol::memory_region_destroy(st);
+            cap_delete(st);
+            return Err(spawnproto::ActivationStatus::FetchFailed);
+        }
+    }
+    Ok(st)
 }
 
 fn memory_region_split(ut: u64, pages: u64) -> Result<u64, ()> {
