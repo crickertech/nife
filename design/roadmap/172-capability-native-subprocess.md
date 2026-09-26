@@ -35,23 +35,32 @@ not a back door around them.
 shared half") already constructs a child process with a specific, narrowed capability endowment and
 lets a parent supervise it (see [DECISIONS §24](../decisions/24-interrupting-the-foreground.md) for
 how a shell already holds a child's interrupt endpoint). What is missing, checked directly against
-that crate and against `kernel/src/user.rs`'s spawn path: a **synchronous, ergonomic wait-and-collect**
+that crate and against `kernel/src/user.rs`'s spawn path: a synchronous, ergonomic wait-and-collect
 shape a caller like `cargo` would actually use in a loop ("run this, block until it's done, give me
 its output"), as opposed to the death-notification/supervision-endpoint pattern built for long-lived
 service supervision. The two may turn out to be the same mechanism used differently, or may need a
 distinct narrow syscall; that sizing is this milestone's own work, not predetermined here.
 
+## How a caller starts the child is decided
+
+§219 (how the shell names an installed program to the spawner), decided 2026-09-26, gives this
+milestone its start half. Option D is the shape: the caller sends an executable's bytes as frames it
+owns, with the grants it chooses. A child whose digest the owner has not vouched for gets only those
+grants and two read-only pages. Running it needs the D2 capability, which the owner gives a session.
+So `cargo` runs a freshly linked test binary through the same request the shell uses. Waiting, exit
+status and output stay this milestone's fork, and the gate above still names them.
+
 ## What it needs
 
-- **The actual design fork**, raised per [DECISIONS §10](../decisions/10-capability-microkernel.md)'s
-  own instruction, before any code: is this a new syscall method on an existing object, a new object
-  type, or a userspace-only composition of `build_child` plus an existing notification mechanism
-  ([DECISIONS §101](../decisions/101-notification-objects.md))? Answer with the six-questions
-  discipline this tree already applies to forks like it (what does the tree already do in the
-  analogous case, what does it cost measured rather than asserted, how reversible is it).
-- **Stdin/stdout/stderr as capabilities**, not ambient file descriptors: a spawned child's I/O needs
+- The actual design fork, raised per DECISIONS §10 (process model: capability-based, microkernel),
+  before any code: is this a new syscall method on an existing object, a new object type, or a
+  userspace-only composition of `build_child` plus an existing notification mechanism (DECISIONS
+  §101 (notification objects))? Answer with the six-questions discipline this
+  tree already applies to forks like it (what does the tree already do in the analogous case, what
+  does it cost measured rather than asserted, how reversible is it).
+- Stdin/stdout/stderr as capabilities, not ambient file descriptors: a spawned child's I/O needs
   to be handed explicitly, the same "additive, not ambient" shape §10 already committed to.
-- **Exit-status delivery** distinct from the death-notification path
+- Exit-status delivery distinct from the death-notification path
   ([DECISIONS §24](../decisions/24-interrupting-the-foreground.md)'s supervision shape, and
   [DECISIONS §32](../decisions/32-reap-without-build.md)'s "a supervisor may collect a corpse
   without being able to build one"), since a caller waiting synchronously for one child's result is

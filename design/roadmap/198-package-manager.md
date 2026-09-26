@@ -1,7 +1,7 @@
 # 198. A package manager, and the trivial install that makes a second customer possible
 
 **Status: PARTIAL.** Minted 2026-08-30 by calef. *(Number provisional until the merge queue
-lands it.)* **Rung 3a's producer half was built 2026-09-23** on
+lands it.)* Rung 3a's producer half was built 2026-09-23 on
 `milestone/198-the-next-rung`: the one archive file §197 ruled a package is
 (`crates/package_archive`, written and read by one definition), `cargo xtask package` turning a
 reviewed recipe into a package, its digest and a catalogue line, and the fuzz target and Kani
@@ -11,22 +11,24 @@ the run. Rung 3a's consumer half is built through "verified by digest" (2026-09-
 carries a package catalogue, a host serves the package over plain HTTP, and `net_stack`'s client
 accepts it only by the image's digest, on aarch64 and riscv64. The table §208 (installing is
 granting) versions is built as host-tested logic in `crates/activation_set`. Installing and everything after it
-wait on §219 (how the shell names an installed program to the spawner).
+waited on §219 (how the shell names an installed program to the spawner), decided 2026-09-26.
 
-**Gate: DECISION §219.** Rung 3a's remaining half waits on
-[§219](../decisions/219-naming-an-installed-program-to-the-spawner.md) (how the shell names an
-installed program to the spawner), because every answer is a change the shell and the progenitor
-agree on. The three forks this gate named before it are all ruled: trust by [§195](../decisions/195-a-recipe-vouches-and-the-owner-may-overrule.md) (a reviewed
-recipe vouches for a package) on 2026-09-19, the format by
-[§197](../decisions/197-a-package-is-one-archive-file.md) (a package is one archive file) on 2026-09-20,
-and activation by [§208](../decisions/208-installing-is-granting.md) (installing is granting, and the
-activation set is versioned) on 2026-09-23. The rulings §157 (a trivial install is a web page, a USB drive, and packages over the internet)
-placed on later rungs gate those rungs
-and not this block, because each sits on a milestone of its own: the install layout on milestone 515
-(rung 2a), Secure Boot on milestone 500 (a stick that boots with Secure Boot on) for rungs 1d and 4, and publication is calef's act at rung 4.
-The transport is ruled too, by §196 (nife carries TLS). **Until 2026-09-24 this line read `DECISION`**, and it stayed
-that way for a day after §208 answered its last fork, because nothing connects a ruling to the gate
-it answers; the proposal `a-ruling-updates-the-gate-it-answers` is the mechanism.
+**Gate: NONE.** [§219](../decisions/219-naming-an-installed-program-to-the-spawner.md) (how the
+shell names an installed program to the spawner) was decided 2026-09-26 (UTC): option D with gate
+D2, so rung 3a's remaining half can start. The next build step is D's request. The shell reads a
+package member into frames from its own budget and sends them under a new `spawnproto` flag
+(`IMAGE_BIT`, provisional). The progenitor hashes its own copy, finds the digest in the activation
+set, and endows the child from that entry's manifest. Install, reboot, rollback and removal follow.
+The first cut takes §219's recommendations for its two open questions provisionally: the activation
+table's shape, and where a manifest travels (§197). D2's capability can come later, since an
+installed package is vouched. Every earlier fork is ruled:
+[§195](../decisions/195-a-recipe-vouches-and-the-owner-may-overrule.md),
+[§197](../decisions/197-a-package-is-one-archive-file.md),
+[§208](../decisions/208-installing-is-granting.md) and §196 (nife carries TLS). The rulings of §157
+(a trivial install is a web page, a USB drive, and packages over the internet) gate later rungs,
+each on a milestone of its own: the install layout on milestone 515 (rung 2a), Secure Boot on
+milestone 500 (a stick that boots with Secure Boot on) for rungs 1d and 4, and publication is
+calef's act at rung 4.
 
 **The history of that line.** **Ruled by calef on 2026-09-19 (16:32 UTC):
 `MILESTONE 23` is dropped from this line.** It read `DECISION, MILESTONE 23`, inherited through
@@ -39,18 +41,18 @@ The argument is in
 [DECISIONS §156](../decisions/156-the-package-manager-waits-on-a-decision-not-milestone-23.md). Milestone 39
 keeps its own gate; this ruling does not touch it.
 
-**A second half of that fork was already ruled and this gate did not say so**, found by milestone
+A second half of that fork was already ruled and this gate did not say so, found by milestone
 435's first slice on the same day.
 [§151](../decisions/151-repository-goal-is-independent-release.md) (the goal of the repository
 split is independent release and third-party programs) took the goal on 2026-09-15, and names this
-milestone's own sentence in doing it. What §151 deliberately leaves open is **the order**, when the
+milestone's own sentence in doing it. What §151 deliberately leaves open is the order, when the
 split happens and against what preconditions, and it lists a package format existing so `basalt` has
 something to assemble as one of them, which is this milestone. The format, the activation shape and
 the repository split are still not this block's and are deliberately not raised here.
 
 **In brief.** calef, 2026-08-30: *"I don't think we expose nife to third parties (aka other
 customers) until we have a package manager and a trivial install process."* And, in the same breath,
-that he wants it **early, to make our own lives easier**.
+that he wants it early, to make our own lives easier.
 
 Both halves matter and they point the same way.
 
@@ -58,10 +60,10 @@ Both halves matter and they point the same way.
 
 AGENTS.md ranks work by the shortest path to a system a customer runs. As of 2026-08-30 that path is
 vacant, and the reason is now two reasons: the first customer's deadline passed and they went to
-borg over SSH, **and this system could not accept a second one if it appeared.**
+borg over SSH, and this system could not accept a second one if it appeared.
 
 That makes packaging structurally different from the milestones it sits beside. It is not on the
-customer path; **it is the door.** A roadmap that ranks by the shortest path to a customer while
+customer path; it is the door. A roadmap that ranks by the shortest path to a customer while
 being unable to take one is ranking against a door it has not built.
 
 ## The second half is the one that earns it early
@@ -77,20 +79,20 @@ its absence today**, hand-wiring per program what a package would install once:
 - `crates/system_initializer` spends a capability through a syscall per program, per architecture,
   and every new program edits it.
 - Milestone 150 (adding a program should not need eight hand-maintained lists) is the same complaint
-  from the other end, and the count is the argument: **eight** lists, hand-maintained, per program.
+  from the other end, and the count is the argument: eight lists, hand-maintained, per program.
 
 ## What already exists to build on, so this does not start cold
 
 - **Milestone 39** has the structural recommendation: monorepo now with the distribution as a
   separate manifest repo, executed as multiple workspaces.
-- **`design/haiku-bfs-and-packages.md`** is the prior art the roadmap already tells you to read
-  first. Haiku's `packagefs` **activates** packages rather than installing them, composing a
+- `design/haiku-bfs-and-packages.md` is the prior art the roadmap already tells you to read
+  first. Haiku's `packagefs` activates packages rather than installing them, composing a
   filesystem view from read-only package files rather than letting installers mutate shared
   directories. It arrived near milestone 47's conclusion from an entirely different motive, atomic
   and rollback-able installs, which is the useful kind of convergence.
-- **`design/what-a-distribution-packages.md`** is the speculation about the units, and is explicitly
+- `design/what-a-distribution-packages.md` is the speculation about the units, and is explicitly
   labelled as speculation.
-- **DECISIONS §135** (running GPL software is aggregation) makes packages the channel for copyleft,
+- DECISIONS §135 (running GPL software is aggregation) makes packages the channel for copyleft,
   so this milestone is also what unblocks `git` and `nano` arriving the honest way rather than being
   built into an image.
 
@@ -98,11 +100,11 @@ its absence today**, hand-wiring per program what a package would install once:
 
 A package manager without an install story is a mechanism nobody reaches. This block deliberately
 does not specify one, because nothing here has met a stranger yet, but it names the constraint:
-**a person with hardware and no prior knowledge of this project reaches a running system.** That is
+a person with hardware and no prior knowledge of this project reaches a running system. That is
 principle 3's test applied to running rather than to building, and today the answer is a
 `cargo xtask` invocation on a development machine, which is not an install.
 
-**Defined by calef on 2026-09-19**
+Defined by calef on 2026-09-19
 ([DECISIONS §157](../decisions/157-a-trivial-install-is-a-web-page-a-usb-drive-and-packages.md)): a
 web page from which one downloads a minimal system, writes it to a USB drive and installs it, and
 which then grows by installing packages over the internet. That puts the format, activation and
@@ -113,10 +115,10 @@ driver, TLS).
 
 A second lane (`milestone/198-rungs-to-a-trivial-install`) built nothing and mapped §157's
 definition onto rungs, each shipping something on its own, against the tree as it stood that day.
-**This section replaces the scoping lane's proposed first slice** (a QEMU run bundle, recorded below
+This section replaces the scoping lane's proposed first slice (a QEMU run bundle, recorded below
 as history), which §157 superseded as a definition.
 
-**Every rung is proved on xenon first and on a second PC after.** xenon is the only PC on the bench;
+Every rung is proved on xenon first and on a second PC after. xenon is the only PC on the bench;
 milestone 243's fleet (the family's other x86 machines) is what turns a claim about one Dell into a
 claim about PCs, and each rung's last exit criterion is that second machine.
 
@@ -130,31 +132,31 @@ claim about PCs, and each rung's last exit criterion is that second machine.
 | **1d. A PC that is not xenon** | Nothing new if 1a to 1c hold | The same stick on one fleet machine reaches `$` at its own keyboard and monitor | 243's fleet; [a-stick-that-boots-with-secure-boot-on.md](500-a-stick-that-boots-with-secure-boot-on.md) (new) for machines whose owner will not turn Secure Boot off |
 | **2a. Installed onto a disk, under QEMU** | An installer; the boot mounting the nife partition off NVMe | OVMF boots the stick image with an empty NVMe attached; the installer names the disk, asks, partitions, formats and copies; the machine reboots **with the stick detached**, reaches `$`, and reads back a file written before the reboot. One `cargo xtask` gate | [the-installer-a-stick-runs-to-put-itself-on-the-disk.md](515-the-installer-a-stick-runs-to-put-itself-on-the-disk.md) (new); [milestone 421 (the block roster cannot name an NVMe)](421-a-block-roster-that-can-name-an-nvme-disk.md) (existing); 57's partitioner and `mkfs` (BUILT) |
 | **2b. Installed onto xenon's disk** | The bench half | The 2a sequence on xenon's Micron 2450, photographed, stick removed before the second boot | 261 (PARTIAL: the disk wipe, calef's, then one bench boot) |
-| **3a. A package over the LAN, under QEMU** | The package client this milestone is; a host-side recipe that produces a package; a small HTTP client | A package absent from the image is fetched from a host on the same network over plain HTTP, verified by digest, installed onto the running system, run, still present after a reboot, and removed | this block; all three rulings it needed are in (§195, §197, §208). The scoping lane's recipe idea (item 1 of the superseded slice) survives here as the producer half. **Producer half BUILT 2026-09-23** (`crates/package_archive`, `cargo xtask package`, `packages/uptime.recipe`, notes/packages.md). Fetch and verify built 2026-09-24 (`helpers/package-http-peer`, `crates/http_response`, a QEMU test on aarch64 and riscv64); the rest waits on §219. No TLS, since §195's digest decides whether bytes may run |
+| **3a. A package over the LAN, under QEMU** | The package client this milestone is; a host-side recipe that produces a package; a small HTTP client | A package absent from the image is fetched from a host on the same network over plain HTTP, verified by digest, installed onto the running system, run, still present after a reboot, and removed | this block; all three rulings it needed are in (§195, §197, §208). The scoping lane's recipe idea (item 1 of the superseded slice) survives here as the producer half. **Producer half BUILT 2026-09-23** (`crates/package_archive`, `cargo xtask package`, `packages/uptime.recipe`, notes/packages.md). Fetch and verify built 2026-09-24 (`helpers/package-http-peer`, `crates/http_response`, a QEMU test on aarch64 and riscv64); the rest was unblocked by §219 on 2026-09-26. No TLS, since §195's digest decides whether bytes may run |
 | **3b. The network card xenon has** | An Intel I219 (`e1000e` family) driver in 261's shape | Under QEMU `-device e1000e` behind `intel-iommu`, milestone 30 (the network stack as a confined component)'s DHCP and TCP gates pass through the new driver; on xenon, a lease from the house router and a measured transfer | [a-driver-for-the-network-card-a-pc-actually-has.md](494-a-driver-for-the-network-card-a-pc-actually-has.md) (new) |
 | **3c. Over the internet** | Name resolution; the transport the ruling picks; a public repository | From xenon's installed system, a package fetched from the public repository by host name, verified and installed | [milestone 384](384-a-name-resolver-and-who-holds-it.md) (existing, which now has a consumer); [DECISIONS §196](../decisions/196-nife-carries-tls-and-builds-the-provider.md) (new); `a-tls-stack-and-which-one.md` (existing) if the ruling is HTTPS |
 | **4. The web page** | A published release and a page | A stranger with a PC, a USB stick and no prior knowledge follows the page to rung 3c's result; the stranger harness (`notes/stranger-test.md`) runs against the **download**, not the build | calef's act; the preconditions below |
 
 ### Order, and which rungs are too big
 
-**Recommended order** (reversible): 1a, then 2a and 3a in parallel lanes (they touch disjoint
+Recommended order (reversible): 1a, then 2a and 3a in parallel lanes (they touch disjoint
 subsystems: the installer and boot mount, and the package client), then 1b, 2b, 3b, 3c, with 1c
 running beside all of them, then 1d, then 4.
 
-- **Rung 1 is too large for "a milestone or two", and one piece is why**: 1c is milestone 242, which
+- Rung 1 is too large for "a milestone or two", and one piece is why: 1c is milestone 242, which
   milestone 192 prices at *"months rather than weeks"* and 242 itself declines to price. It is split
-  on purpose so that **2 and 3 do not wait on it**: on xenon, the installer and the package client
+  on purpose so that 2 and 3 do not wait on it: on xenon, the installer and the package client
   can be driven over the serial console. 1c is on rung 4's critical path and on nothing else's.
-- **1a is one attended boot, and it should capture two more facts while it is there**: the PCI
+- 1a is one attended boot, and it should capture two more facts while it is there: the PCI
   survey now prints every function (`kernel/src/pci.rs`, since 2026-09-18), which names xenon's
   network card for 3b, and the `vt-d` line's DMAR scope, which milestone 261 names as its
   load-bearing unknown.
-- **Rung 2 is one milestone plus 261's bench step.** The partitioner and `mkfs` exist; what is new
+- Rung 2 is one milestone plus 261's bench step. The partitioner and `mkfs` exist; what is new
   is a layout sized to the disk, the loader handing its own file over, the ESP, and the boot mount.
-- **Rung 3 is three pieces and 3a is the only one that is this milestone.** 3b and 3c are the NIC
+- Rung 3 is three pieces and 3a is the only one that is this milestone. 3b and 3c are the NIC
   proposal and the resolver plus the transport ruling. 3a can start as soon as the three fork
   rulings are in, over virtio-net under QEMU, needing no new driver and no TLS.
-- **Trust T1 cannot serve rung 3**: under T1 installing is rebuilding the image on a host, which a
+- Trust T1 cannot serve rung 3: under T1 installing is rebuilding the image on a host, which a
   stranger cannot do. Rung 3 needs T2 or T3.
 
 ### Which rulings each rung needs
@@ -178,22 +180,22 @@ Not a ruling but calef's hands: **the wipe of xenon's NVMe** (milestone 261), wh
 
 §157 makes publishing calef's act. What a lane can make true first, so the act is only a decision:
 
-- Rungs 1 to 3 pass on a machine that is not xenon, **with a USB keyboard**, so milestone 242 is
+- Rungs 1 to 3 pass on a machine that is not xenon, with a USB keyboard, so milestone 242 is
   built.
 - A release exists. `gh release list` returns nothing today (§157's measurement); the download
   carries a checksum, and a signature if the trust or Secure Boot ruling creates a key.
 - The Secure Boot ruling is answered on the page, before its first instruction.
-- **Something checks DECISIONS §135's requirement 1** ("no conveyed artifact carries copyleft") for
+- Something checks DECISIONS §135's requirement 1 ("no conveyed artifact carries copyleft") for
   the image the page conveys; §135's own `BUGS` says nothing enforces it.
 - The stranger harness passes against the download, and records the time from page to prompt.
 
 ### The superseded slice, and what survived it
 
-The scoping lane's first slice (below, under "Scoped 2026-09-19") had four items. **Item 1**, packages
-as host-side recipes, survives as rung 3a's producer. **Item 2**, image composition from a declared
+The scoping lane's first slice (below, under "Scoped 2026-09-19") had four items. Item 1, packages
+as host-side recipes, survives as rung 3a's producer. Item 2, image composition from a declared
 set, is off the path: milestone 150, in flight as PR #968, generates the program table from one
 declaration, and
-nothing on a rung needs a second mechanism. **Item 3**, the QEMU run bundle, is off the path; §157
+nothing on a rung needs a second mechanism. Item 3, the QEMU run bundle, is off the path; §157
 left it as a lane's reversible call, and the call is that it is a developer convenience rather than
 a rung, worth building only if the stranger harness wants a vehicle before rung 1d exists. **Item
 4**, removal, is part of 3a's exit criterion and of the activation ruling.
@@ -216,7 +218,7 @@ built, and the gate line above is left as minted because changing it is the firs
 | Trivial install | [DECISIONS §157](../decisions/157-a-trivial-install-is-a-web-page-a-usb-drive-and-packages.md) | **Decided 2026-09-19 by calef, not as recommended:** a web page, a download written to a USB drive and installed, then packages over the internet. The lane had recommended a QEMU run bundle as the first rung; its first slice is superseded as a definition and needs rescoping |
 
 **Superseded 2026-09-19 by §157 and by "Rescoped 2026-09-19" above**, kept as the record of what
-was proposed. ~~**The proposed first slice needs none of the three irreversible rulings**: packages
+was proposed. ~~The proposed first slice needs none of the three irreversible rulings: packages
 as host-side recipes, image composition from a declared set, and a run bundle tested by the stranger
 harness and not published until calef says so. Its details and what it unblocks are in the
 trivial-install proposal.~~
@@ -247,66 +249,66 @@ calef's acts are named there rather than here.
 
 ## BUGS
 
-- **This block prices nothing.** A package manager is a large piece of work and the estimate is not
+- This block prices nothing. A package manager is a large piece of work and the estimate is not
   attempted; the sequencing claim is that it gates a customer, not that it is cheap.
-- **The package encoding is provisional, and so is `package_archive`'s name.** §197 ruled the
+- The package encoding is provisional, and so is `package_archive`'s name. §197 ruled the
   container, not the byte offsets, and two of its own open questions are left open by the built
   format rather than answered: where a program's manifest travels (a sibling member is possible and
   nothing requires one) and whether the digest is a Merkle root (the built format takes the plain
   SHA-256 §197 records as the default). Reversible only until somebody outside this repository
   fetches a package, which §197 says fixes the format.
-- **The two Kani harnesses prove less than their names suggest.** They cover a 272-byte file, which
+- The two Kani harnesses prove less than their names suggest. They cover a 272-byte file, which
   is the largest symbolic buffer that stays cheap, so the table they exercise holds at most two
   members and `MAX_MEMBERS` is never approached. Both discharge in 4 seconds together, and
   `script/verify`'s table carries the row.
-- **It does not decide the format, the activation shape, or the repository split.** The scoping
+- It does not decide the format, the activation shape, or the repository split. The scoping
   lane found the split's timing is not needed at all (see the gate proposal). ~~The format,
   activation and trust forks are proposals awaiting calef, not decisions.~~ calef decided all three
   (§197, §208, §195); the repository split is still open under §151 (the goal of the
   repository split is independent release).
-- ~~**"Trivial install" is undefined on purpose and that is a real gap**, not a subtlety. Nobody has
-  written what a stranger's first ten minutes look like.~~ **Written 2026-09-19** in the
+- ~~"Trivial install" is undefined on purpose and that is a real gap, not a subtlety. Nobody has
+  written what a stranger's first ten minutes look like.~~ Written 2026-09-19 in the
   trivial-install proposal, from the tree and from commands run that day. ~~What remains undefined
-  is calef's ruling on it.~~ **Ruled 2026-09-19** (§157), and mapped onto rungs above.
+  is calef's ruling on it.~~ Ruled 2026-09-19 (§157), and mapped onto rungs above.
 - ~~**No real board gives a stranger a prompt today.** x86-64 has no interactive boot (milestone 182)
   and no USB keyboard (milestone 242); radon's prompt input is unconfirmed on silicon. So the only
   interactive install this milestone can offer soon is QEMU, and that limit is outside this
-  milestone's reach.~~ **Reframed 2026-09-19 by §157**: the install is a PC, and the limit is now
+  milestone's reach.~~ Reframed 2026-09-19 by §157: the install is a PC, and the limit is now
   rung 1's. x86_64 has a prompt over serial since milestone 299, proven under QEMU and not yet on
   xenon; the shell's output does not reach the screen (a new proposal), and the keyboard is still
   milestone 242.
-- **Rung 1 cannot be finished in "a milestone or two"**, and the reason is milestone 242 (USB host
+- Rung 1 cannot be finished in "a milestone or two", and the reason is milestone 242 (USB host
   and HID). The rungs are split so rungs 2 and 3 do not wait on it; rung 4 does.
-- **The rungs are sequenced on one Dell.** Each has a second-machine exit criterion, and until one
+- The rungs are sequenced on one Dell. Each has a second-machine exit criterion, and until one
   passes, every claim here is about xenon. A stranger's laptop may have no Ethernet (Wi-Fi is out of
   scope in the NIC proposal), a SATA disk (no AHCI driver; the installer proposal's `BUGS`), or its
   NVMe behind Intel RST or VMD.
-- **A third party cannot author a package without cloning this repository**, because the `nife-dev`
+- A third party cannot author a package without cloning this repository, because the `nife-dev`
   toolchain, the target specifications and the linker script exist only as build steps inside it
   (`helpers/build-ripgrep.sh` is the one out-of-tree build and it needs them). §151 (the goal of the repository split is independent release)'s
   "third-party programs" needs a downloadable toolchain, which nothing tracks yet.
-- **The cold build time a stranger pays was not measured**, because two other lanes were gating on
+- The cold build time a stranger pays was not measured, because two other lanes were gating on
   the machine when this block was scoped. ~~The first slice's stranger-harness run should measure it
   alongside the bundle.~~ Under §157 a stranger does not build at all; it stays worth measuring for
   contributors, and rung 4's stranger-harness run measures the time from the page to a prompt
   instead.
-- **Packages do not by themselves run `git` or `nano`.** Milestone 205 (no argument vector) and the
+- Packages do not by themselves run `git` or `nano`. Milestone 205 (no argument vector) and the
   raw-input primitive of milestones 169 and 170 still stand in front of both.
-- **nife cannot build software**, so a package is a thing produced by a host toolchain and consumed
+- nife cannot build software, so a package is a thing produced by a host toolchain and consumed
   by the target. Every packaging idea borrowed from a self-hosting system needs that translation
   checked rather than assumed.
 
 ## Index row
 
 calef, 2026-08-30: no third party sees nife until there is a package manager and a trivial
-install, and he wants both **early, to make our own lives easier**. That makes packaging a **precondition on principle 1's ranking function** rather than an item under it: the customer path
+install, and he wants both early, to make our own lives easier. That makes packaging a precondition on principle 1's ranking function rather than an item under it: the customer path
 is vacant partly because a second customer could not be accepted if one appeared. The early half
 is what earns it, since the builders pay for its absence today, hand-wiring per program what a
 package would install once (milestone 40 already ships "installed by the package that owns it",
-against no package). Gate: DECISION on §219, the fork that stops rung 3a after "verified"; the
-format, activation and trust forks are ruled (§197, §208, §195); `MILESTONE 23` was dropped by calef on 2026-09-19 because it closed a
-loop, which §156 (what the package manager waits on) records. **Rescoped 2026-09-19 under §157**
-into four rungs, each shipping on its own, and **rung 3a's producer half is built** (2026-09-23:
+against no package). Gate: NONE since §219 was ruled on 2026-09-26; the
+format, activation and trust forks are ruled too (§197, §208, §195); `MILESTONE 23` was dropped by calef on 2026-09-19 because it closed a
+loop, which §156 (what the package manager waits on) records. Rescoped 2026-09-19 under §157
+into four rungs, each shipping on its own, and rung 3a's producer half is built (2026-09-23:
 the one archive file §197 ruled a package is, and `cargo xtask package`, which turns a reviewed
 recipe into one; fetch and verify followed on 2026-09-24): a stick reaching a prompt on a PC (1a on xenon over serial
 needs nothing new; the screen and the USB keyboard, milestone 242, are the rest), that system
