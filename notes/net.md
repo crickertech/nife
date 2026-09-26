@@ -17,33 +17,48 @@ on a `Stack` endpoint; a client holds `WRITE` on it plus its own untyped budget.
 `components/src/socket_test_client.rs` (a module of the net_stack binary, dispatched by the entry role, see the archive
 note below).
 
-- **A socket is a socket id.** Open returns a small integer, carried in the request word of every
-  later call; the per-connection **shared frame** is the real granted resource, delegated once at
-  open via `SEND_CAP` and mapped by net_stack at a per-socket VA. No ambient network: the client acts only
-  through the `Stack` capability it was granted, and bytes cross in the shared frame, never in a
-  message.
-- **Operations.** `ATTACH_FRAME` is a `SEND_CAP` (it carries the frame). The rest are `CALL`s (which
-  mint the reply cap net_stack answers on), the socket id packed into the request word: `OPEN_UDP` /
-  `OPEN_TCP`; `SENDTO(len)` and `RECV() -> len` for UDP (destination and payload in the shared
-  frame); `CONNECT` / `SEND(len)` / `RECV()` for TCP; `CLOSE`. A blocking `RECV` is net_stack driving the
-  smoltcp poll loop (WAIT on the NIC interrupt) until the socket has data, then replying, the disk
-  driver's discipline one layer up.
-- **Frame layout, pinned.** One data region reused per operation, NOT a split TX/RX ring: the
-  phase-one contract is one *synchronous* exchange per `CALL` (the client blocks in the CALL while
-  net_stack drives the network), so a request's payload and its reply never coexist. A split ring becomes
-  necessary only with asynchronous or streaming sockets, deferred with the concurrency model.
-- **Concurrency model, phase one:** single-threaded net_stack, one synchronous exchange per request. net_stack
-  blocks on the `Stack` endpoint between requests and drives the network inside handling one. This
-  suits the `std::net` PAL's blocking calls; concurrent connections and listening sockets want either
-  userspace threads (milestone 19c TCBs) or a select-like wait, the phase-two extension.
-- **One binary, one archive entry.** The client rides in the net_stack binary (a nonzero entry role runs
-  it) rather than a separate binary, because the nifefs archive directory held at most 15 files at
-  the time and the initrd was already near that ceiling. (The ceiling is `nifefs::MAX_FILES`, 76
-  since 2026-08-01; see [nifefs.md](nifefs.md). The decision stands on its own merits, but the
-  pressure behind it is gone.) A subtlety worth recording: net_stack reports its DHCP
-  lease with a *blocking* `send`, so the spawn service drains that report before returning, or net_stack
-  never reaches its serve loop and the client's first request hangs. That was the one real bug in
-  bring-up, caught by a watchdog hang.
+### A socket is a socket id
+
+Open returns a small integer, carried in the request word of every
+later call; the per-connection shared frame is the real granted resource, delegated once at
+open via `SEND_CAP` and mapped by net_stack at a per-socket VA. No ambient network: the client acts only
+through the `Stack` capability it was granted, and bytes cross in the shared frame, never in a
+message.
+
+### Operations
+
+`ATTACH_FRAME` is a `SEND_CAP` (it carries the frame). The rest are `CALL`s (which
+mint the reply cap net_stack answers on), the socket id packed into the request word: `OPEN_UDP` /
+`OPEN_TCP`; `SENDTO(len)` and `RECV() -> len` for UDP (destination and payload in the shared
+frame); `CONNECT` / `SEND(len)` / `RECV()` for TCP; `CLOSE`. A blocking `RECV` is net_stack driving the
+smoltcp poll loop (WAIT on the NIC interrupt) until the socket has data, then replying, the disk
+driver's discipline one layer up.
+
+### Frame layout, pinned
+
+One data region reused per operation, NOT a split TX/RX ring: the
+phase-one contract is one *synchronous* exchange per `CALL` (the client blocks in the CALL while
+net_stack drives the network), so a request's payload and its reply never coexist. A split ring becomes
+necessary only with asynchronous or streaming sockets, deferred with the concurrency model.
+
+### Concurrency model, phase one
+
+net_stack is single-threaded, with one synchronous exchange per request. net_stack
+blocks on the `Stack` endpoint between requests and drives the network inside handling one. This
+suits the `std::net` PAL's blocking calls; concurrent connections and listening sockets want either
+userspace threads (the TCBs of milestone 19c (run a real workload)) or a select-like wait, the phase-two extension.
+
+### One binary, one archive entry
+
+The client rides in the net_stack binary (a nonzero entry role runs
+it) rather than a separate binary, because the nifefs archive directory held at most 15 files at
+the time and the initrd was already near that ceiling. (The ceiling is `nifefs::MAX_FILES`, 76
+since 2026-08-01; see [nifefs.md](nifefs.md). The decision stands on its own merits, but the
+pressure behind it is gone.) A subtlety worth recording: net_stack reports its DHCP
+lease with a *blocking* `send`, so the spawn service drains that report before returning, or net_stack
+never reaches its serve loop and the client's first request hangs. That was the one real bug in
+bring-up, caught by a watchdog hang.
+
 
 ## The inbound half: the guest can be connected to (milestone 107)
 
@@ -58,7 +73,9 @@ verbs, and neither was copied from POSIX.
 
 ### EXAMPLES: serving a port, end to end
 
-**Spawn side.** Whoever wires the pair decides the inbound authority, and the client never asks for
+#### Spawn side
+
+Whoever wires the pair decides the inbound authority, and the client never asks for
 it. `socket_protocol::listen_grant(lo, hi)` packs an inclusive range into the one word `arg2` carries:
 
 ```rust
@@ -75,7 +92,9 @@ let report = virtio_service::start_net_stack(image, NET_TEST_TCP_ECHO, false,
                                              socket_protocol::NO_LISTEN_GRANT)?;
 ```
 
-**Client side.** Bind the port, then accept into a *different* socket id that already has a frame.
+#### Client side
+
+Bind the port, then accept into a *different* socket id that already has a frame.
 The listener never gets a frame, and `ACCEPT` refuses to install a connection at the listener's own
 id:
 
@@ -103,7 +122,9 @@ loop {
 
 `components/src/socket_test_client.rs::tcp_accept_inbound` is that sequence with the assertions in it.
 
-**Running the gate.** It is part of the ordinary suite and needs no host setup; xtask picks a free
+#### Running the gate
+
+It is part of the ordinary suite and needs no host setup; xtask picks a free
 loopback port, hands it to the runner as `NIFE_HOSTFWD_PORT`, and runs the prober thread itself:
 
 ```console
@@ -171,11 +192,11 @@ written, in [the-inbound-check.md](net/the-inbound-check.md).*
   both buses. This is the same reasoning that retired the PCIe DNS variant.
 - **Inbound UDP is now built, and it is a grant of its own** (milestone 55's mDNS stack half; this
   bullet used to say "not built"). `BIND_UDP` claims a fixed UDP port the way `LISTEN` claims a TCP
-  one, checked against a **UDP bind grant** the spawn site packs into the high half of the same
+  one, checked against a UDP bind grant the spawn site packs into the high half of the same
   spawn word the listen grant rides in (`socket_protocol::udp_bind_grant`; the halves are independent
   authorities, and the zero word still grants nothing anywhere). It answers with `LISTEN`'s own
   vocabulary because the three outcomes are properties of claiming a port, not of TCP. In the same
-  change, a UDP `RECV` reply now carries the datagram's **source endpoint** in the frame's dst
+  change, a UDP `RECV` reply now carries the datagram's source endpoint in the frame's dst
   fields (dead space on a reply), because a responder must see who asked and RFC 6762 §6.7 turns on
   the querier's source port; the TFTP gate consumes it by ACKing to the DATA packet's reported
   source, which is what TFTP's TID scheme wanted all along. The stack also joins 224.0.0.251 at

@@ -12,7 +12,9 @@ no sentence over 40 words, and 4 or fewer bold spans per 1,000 words. Rule 4 sta
 The ratchet is the enforcement, and two proposed rules stay dropped. Raised by calef the same day,
 reading a maintainer session's proposal to cap document length. A maintainer session then measured
 the tree and proposed four rules, he replied *"Set them."*, and he then changed the median from 25 to
-20 and split rule 3 in two. Section number 213 was minted at merge on 2026-09-24.
+20 and split rule 3 in two. Section number 213 was minted at merge on 2026-09-24. He added two
+rulings on 2026-09-26, between about 00:15 and 00:45 UTC: line-opening labels, and bold density in
+any document a change touches.
 
 His words, which are the whole brief:
 
@@ -107,14 +109,61 @@ Three rules carry numbers. The fourth is the most valuable and no machine can ch
 3. Bold marks a claim, not a clause, and it is two rules rather than one. First, the budget: 4 or
    fewer `**…**` per 1,000 words, against today's median of 16.1 with every document over it. Second,
    and this is where the volume is: a bold span that opens a line is a heading that lost its syntax.
-   Promote it to a real heading, or drop the bold and let the sentence carry itself. The 816 whole-line
-   bolds are unambiguous and mechanically convertible, so they are the first cut.
+   Promote it to a real heading, or drop the bold and let the sentence carry itself. Which fix
+   applies to which bold is ruled below, under *A label that opens a line becomes a heading*. The 816
+   whole-line bolds are unambiguous and mechanically convertible, so they are the first cut.
 4. State a finding once, and never comment on your own finding. No number, and this is the rule that
    would cut the most. `design/fatal-risks.md` is the worked example a reader can go check. A finding
    there appears in a status line, again in its own subsection, again in the running-order table.
    Each appearance carries a sentence telling the reader how to feel about it: "which is the point",
    "and that is what makes it credible", "stated once so it is not re-litigated". The finding with
    its caveat is the content. The commentary on the finding is not, and it is often the longest part.
+
+### A label that opens a line becomes a heading
+
+Ruled by calef on 2026-09-26 (UTC). He took it to be the rule already, and it was not: rule 3 named
+two fixes and never said which bold gets which. The volume is in the table above, where 18,712 of
+29,804 bold spans open a line.
+
+A label names the part of the document that follows: *Operations.*, *Spawn side.*, *Running the
+gate.* A bold label that opens a paragraph becomes a real heading, one level below the heading it
+sits under, without its trailing period or colon. The paragraph keeps its words.
+
+A claim is out of scope. A bold sentence that opens a bullet and asserts a finding (*`std::net::TcpListener`
+is bound*, *The multicast half was retired on 2026-09-15*) is emphasis, not a heading. Rule 3's
+budget governs it, and dropping the bold is the usual fix. The test is what the bold does, not its
+grammar. A label is something a reader might want to jump to, and a claim is something a reader
+should not miss. So a sentence standing where its siblings are noun phrases is a label too.
+
+Fields a script parses, such as `**Status:**`, `**Gate:**` and `**Built:**`, are neither. They wait
+on the frontmatter ruling below.
+
+A list of parallel items is decided by the length of its items:
+
+- Items that are sections, several sentences each, dissolve. Each label becomes a heading, and its
+  item becomes a paragraph under it. `notes/net.md`'s socket contract is the worked example: five
+  items of three to eight sentences, from *A socket is a socket id.* to *One binary, one archive
+  entry.*, became five `###` headings on 2026-09-26.
+- Items that are entries, a sentence or two each, stay a list and lose the bold. The list marker
+  already shows where each entry starts. A heading per short entry would bury the outline under its
+  own table of contents. The roadmap's repeated *Recorded.* and *Refused.* tags are this kind.
+
+### Why the label rule is rung 3 for now
+
+A gate was measured before it was refused, on 2026-09-26 over the ratchet's scope of 1,216
+documents. The candidate: a line-opening bold span of five words or fewer that ends in a period or
+colon, with more text after it in the same paragraph. It matches 5,720 spans in 967 documents.
+
+Of 80 sampled matches, 24 were labels a heading fixes. 23 were repeated tags like *Recorded.* and
+*Outstanding.*, which lose their bold instead. 12 were parsed fields, 15 were claims (*That is a
+syscall.*, *The seam is the payoff.*) and 5 were definition terms. Under a third of the hits are
+what this rule converts. It also misses long labels: 5 of 40 sampled non-matches were labels over
+five words, such as *Why this is the selling point, and safe.* Telling a claim from a label is a
+question about verbs, and a regular expression cannot ask it.
+
+So the rule is rung 3, a record at the thing: this section, and the headings a converted document
+now carries. The ratchet's line-opening bold count is the rung-2 backstop, and it already stops a
+document over the budget from gaining a label.
 
 ### The budget has no irreducible floor, and an earlier claim that it did was wrong
 
@@ -143,12 +192,20 @@ Rule 3 fails every document in the tree, so a cliff would be 994 instant failure
 project nobody wants. The gate sits at rung 2 of the `AGENTS.md` ladder, a check that fails loudly,
 and it is [milestone 586 (a prose ratchet in lint)](../roadmap/586-a-prose-ratchet-in-lint.md), shared with §212's.
 #1230 built it on 2026-09-24 as `helpers/prose_ratchet.py`, run by `script/lint`. The milestone
-is PARTIAL: one week of baseline-churn measurement remains. It holds bold as two counts rather than
-as density, and [its block](../roadmap/586-a-prose-ratchet-in-lint.md) says why.
+is PARTIAL: one week of baseline-churn measurement remains.
 
-- A document's median sentence length, longest sentence and bold density may not rise. That is the
-  shape of the unsafe-count ratchet and the icount tripwire already in this tree. It turns a wall
-  into a direction, and rule 3 needs that more than the other two do.
+- A document's median sentence length and longest sentence may not rise. That is the shape of the
+  unsafe-count ratchet and the icount tripwire already in this tree. It turns a wall into a
+  direction.
+- A document a change touches meets the bold budget outright, and its baseline grants it no bold.
+  calef, 2026-09-26 (UTC): *"4 bolds per 1000 is the right ratio for our written prose. That it
+  was previously written without density is irrelevant. Bold should be rare."* The gate first held
+  bold as two counts, because condensing a document raises its density. The answer now is that
+  whoever condenses a document removes its bold too. Bold a script parses (`**Status:`, `**Built:**`,
+  a Follow-on tag) is syntax, not emphasis, and is not counted; the ratchet reads that set from the
+  parsers' own source (maintainer ruling on #1311, 2026-09-26). An untouched document keeps its baseline
+  counts, so the tree did not go red that day. He chose not to sweep the backlog. The weekly bold
+  chart in `notes/project-metrics.md` drives it down, and retires itself at zero.
 - The check reports line-opening and inline bold as two counts. They have different fixes, and a
   single density number hides which one a document has.
 - A new document meets the standard outright. So does a document being rewritten wholesale, which is
@@ -211,6 +268,8 @@ then a document whose budget is spent on markup records that in its own `BUGS` s
 - This document once carried a `**Status:` line, a line-opening bold that rule 3 deprecates, as a
   marked exception because `script/decisions` parsed it. Milestone 582 (a decision's status becomes
   a field) moved the status into frontmatter, so the exception is gone.
+- The label gate's 80-sample classification is one agent's hand judgment on 2026-09-26, and the
+  line between a short claim and a label is exactly where two readers would disagree.
 - This section meets its own three numbers, which tests that they are livable in a document carrying
   numbers and citations. It does not test them on a note explaining a mechanism, and that is the
   longer half of the tree.

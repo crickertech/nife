@@ -38,32 +38,33 @@ not a caption, it is a register entry.
 - [Coverage](#coverage)
 - [The lowest-covered file](#the-lowest-covered-file)
 - [The prose budget](#the-prose-budget)
+- [The bold backlog](#the-bold-backlog)
 <!-- /toc -->
 
 ## Read this before you read a number
 
-- **Every row is a restatement, not a report.** The series applies *today's* definitions to old
+- Every row is a restatement, not a report. The series applies *today's* definitions to old
   commits, which is right for a trend and is not what anybody believed at the time.
-- **Every figure here is derived by an agent and none of it is externally audited.** Where a number
+- Every figure here is derived by an agent and none of it is externally audited. Where a number
   has been checked two different ways, the register says so and names the method.
-- **A missing bar means the record did not exist, not that the number was zero.** No empty cell is
+- A missing bar means the record did not exist, not that the number was zero. No empty cell is
   ever drawn as a nought.
-- **Weeks are ISO weeks in UTC**, spelled `2026W36` everywhere, and the series starts at 2026W29
+- Weeks are ISO weeks in UTC, spelled `2026W36` everywhere, and the series starts at 2026W29
   because that is where the first commit falls. There is no 2026W28.
-- **The charts show the ten most recent weeks; the CSV keeps every one.** A week is never deleted,
+- The charts show the ten most recent weeks; the CSV keeps every one. A week is never deleted,
   only no longer drawn.
-- **A milestone is not a fixed unit and a pull request is not a unit of value.** Read the shape, not
+- A milestone is not a fixed unit and a pull request is not a unit of value. Read the shape, not
   the height.
 
 ## The nine things that would kill nife
 
 ![Fatal risks](project-metrics/fatal-risks.svg)
 
-From `design/fatal-risks.md`, by **Experiment status**: `RUN`, `NOT-RUN` or `CANNOT-RUN`, the field
+From `design/fatal-risks.md`, by "Experiment status": `RUN`, `NOT-RUN` or `CANNOT-RUN`, the field
 calef ratified on 2026-09-23. It says whether an experiment happened, never what it found; the
-verdicts are prose in that file. **Every bar from 2026W36 is nine**, the risks in that week's file:
+verdicts are prose in that file. Every bar from 2026W36 is nine, the risks in that week's file:
 where the field did not exist yet, or held a word with no meaning today, the risk is drawn as
-**unclassified** rather than left out. 2026W35 and earlier are zero because the file reached `main`
+"unclassified" rather than left out. 2026W35 and earlier are zero because the file reached `main`
 on 2026-08-31 UTC.
 
 ## Kani proof harnesses, and what can falsify them
@@ -94,7 +95,7 @@ changed, so read the kernel and userspace bars in those weeks as undercounts of 
 ![Milestones built each week](project-metrics/velocity.svg)
 
 A flow: milestones whose `Built:` date falls in that week, read from today's tree for every week.
-**It does not reconcile with the `Built` stock below, and that is the design**; the gap is the lag
+It does not reconcile with the `Built` stock below, and that is the design; the gap is the lag
 between finishing a milestone and flipping its row.
 The line is the trailing ten-week mean, drawn rather than stored; it is dashed where fewer than ten
 weeks exist behind it, which until 2026W47 is the left of the chart.
@@ -113,24 +114,24 @@ The line is the same trailing ten-week mean as the chart above, dashed where the
 ![Commits each week, by the model that signed them](project-metrics/models-commits.svg)
 
 From the `Co-Authored-By` trailer. Attributed plus unattributed plus merge is every commit that
-week, and **a merge is a pull request landing rather than a piece of writing**. 2026W29 predates
+week, and a merge is a pull request landing rather than a piece of writing. 2026W29 predates
 the convention, so it is absent rather than zero.
 
-The palette has eight hues, so **other models** is Opus 4.8, Fable 5.1 and any trailer the script
+The palette has eight hues, so "other models" is Opus 4.8, Fable 5.1 and any trailer the script
 does not recognise, drawn as one band; `notes/project-metrics/models.csv` keeps each apart.
 
 ## Lines touched, by the model that signed them
 
 ![Lines touched each week, by the model that signed them](project-metrics/models-lines.svg)
 
-**Added plus removed, not net, and volume rather than effort.** The hardest change of 2026-09-23
+Added plus removed, not net, and volume rather than effort. The hardest change of 2026-09-23
 was a dozen lines and the largest was a mechanical sweep. Merges carry no line count.
 
 ## What this project costs
 
 ![Machine effort per milestone built](project-metrics/effort.svg)
 
-Millions of lane tokens per milestone built. **2026W29 through 2026W33 are absent, not zero**: those
+Millions of lane tokens per milestone built. 2026W29 through 2026W33 are absent, not zero: those
 records were never in git and were already gone when the capture started, and the current week is
 always understated because its tokens accumulate all week.
 
@@ -138,9 +139,9 @@ always understated because its tokens accumulate all week.
 
 ![What a turn carried, in thousands of tokens of context](project-metrics/context-per-turn.svg)
 
-Mean prompt per request, from session records that are not in git. **A turn costs the size
-of its context, not the size of its thought**: cache reads are about 98% of every token
-spent and output about 0.1%. **2026W29 through 2026W33 are absent, not zero.**
+Mean prompt per request, from session records that are not in git. A turn costs the size
+of its context, not the size of its thought: cache reads are about 98% of every token
+spent and output about 0.1%. 2026W29 through 2026W33 are absent, not zero.
 
 ## Architecture decisions by status
 
@@ -154,7 +155,7 @@ a status existing at all, counted as having none rather than as `DECIDED`.
 ![Names by what the tree records about them](project-metrics/names.svg)
 
 What each named thing's own provenance block says. The pale band is named things carrying no block,
-which before 2026-08-04 is every one of them. **A rising `Provisional` band is not debt**: nothing
+which before 2026-08-04 is every one of them. A rising `Provisional` band is not debt: nothing
 in this tree fails because a name is unratified, and the band worth an alarm is `Unrecorded`.
 
 ## Milestones by status
@@ -171,13 +172,13 @@ watch is `NOT-STARTED`, which grows faster than the lanes drain it.
 ![Rust in the tree, in thousands of lines](project-metrics/lines.svg)
 
 Every tracked `.rs` file outside `vendor/`, with `kernel/src` split from the rest, in thousands of
-lines. **Lines are volume, not effort.** A line with code and a trailing comment counts as code.
+lines. Lines are volume, not effort. A line with code and a trailing comment counts as code.
 
 ## BUGS sections
 
 ![BUGS sections](project-metrics/bugs.svg)
 
-Markdown headings plus Rust doc comments. **Rising is good here**: a `BUGS` section is a limitation
+Markdown headings plus Rust doc comments. Rising is good here: a `BUGS` section is a limitation
 written next to the feature it limits, so a falling line is the alarming one.
 
 ## Coverage
@@ -193,7 +194,7 @@ backfilled that way on 2026-09-19. 2026W29 is empty because no instrument existe
 ![Minimum per-file coverage](project-metrics/coverage-floor.svg)
 
 The minimum per-file coverage, which is the number `script/coverage` actually gates on at 80%.
-**The aggregate above can hold steady while one file slides**, so this is the panel that predicts a
+The aggregate above can hold steady while one file slides, so this is the panel that predicts a
 failing build. 2026W31 to 2026W38 were backfilled on 2026-09-24 from each week's own lcov;
 2026W30 is empty because the floor did not exist yet. The provenance is in the register's
 [proofs and coverage](register-of-measures/code-proofs-and-coverage.md) appendix.
@@ -206,14 +207,31 @@ failing build. 2026W31 to 2026W38 were backfilled on 2026-09-24 from each week's
 
 calef ratified a 3,000-word cap per document on 2026-09-23, enforced as a ratchet. The first chart
 is the debt, the words that would have to move into appendices for the tree to meet its own rule;
-the second is how many documents that work sits in. **A ratchet is invisible without a graph**,
+the second is how many documents that work sits in. A ratchet is invisible without a graph,
 which is why there are two.
 
-**The weeks before the cap was ratified are derived, not recorded**: each is counted from that week's
+The weeks before the cap was ratified are derived, not recorded: each is counted from that week's
 own tree by `script/metrics --backfill`, applying today's cap and today's document scope to a tree
 that had no such rule. The scope is `_prose_documents()` in the script, and it will change when
 milestone 586 (a prose ratchet in lint) shares one definition with `script/lint`; the whole series is
 restated from history when it does.
+
+## The bold backlog
+
+![Bold spans over the budget](project-metrics/bold-backlog.svg)
+
+![Documents over the bold budget](project-metrics/bold-backlog-documents.svg)
+
+This chart is temporary. calef ruled on 2026-09-26 that bold should be rare: 4 spans per 1,000
+words, met by any document a change touches. He chose not to sweep the rest. The chart is
+pulled once both panels reach zero. Then `script/metrics` prints "the bold backlog
+is zero; retire this chart" and writes it here:
+
+<!-- bold-backlog: script/metrics writes this -->
+2026W39: 18465 spans over, in 949 documents.
+<!-- /bold-backlog -->
+
+Counted by `helpers/prose_ratchet.py`, from 2026W39.
 
 ## How it stays current
 
@@ -228,12 +246,12 @@ rest: the snapshot's `launchd` shape, why the file is idempotent, and which comm
 
 ## BUGS
 
-- **`script/metrics --check` is deliberately not in `script/lint`.** Any commit changes `HEAD`, and
+- `script/metrics --check` is deliberately not in `script/lint`. Any commit changes `HEAD`, and
   the current week's row records the commit it was taken at, so a gate on it would fail every pull
   request that touched anything. The workflow is the mechanism; this is rung two of `AGENTS.md`'s
   ladder declining to be rung one, said out loud rather than left as an omission.
-- **A newly added column can go blank across history if a CSV merge conflict is resolved with
-  `--update` instead of `--backfill`.** `--update` only touches the current week and any week
+- A newly added column can go blank across history if a CSV merge conflict is resolved with
+  `--update` instead of `--backfill`. `--update` only touches the current week and any week
   missing outright; a row the CSV already holds is left exactly as it was, new columns included, so
   a merge that resolves two branches' concurrently-added columns into one header needs a `--backfill`
   afterward or the older rows carry the new columns as empty cells. This happened to
@@ -241,69 +259,69 @@ rest: the snapshot's `launchd` shape, why the file is idempotent, and which comm
   case) and nowhere else, checked at the time. Empty, not zero, is the tell: `git diff` on
   `notes/project-metrics/` after any commit that merges two metrics branches is worth a look before
   trusting the row count.
-- **`milestones_built_this_week` will not equal the week-on-week change in the `Built` stock, in
-  any week.** It is deliberate and the register argues it, but it reads as an error to anyone who
+- `milestones_built_this_week` will not equal the week-on-week change in the `Built` stock, in
+  any week. It is deliberate and the register argues it, but it reads as an error to anyone who
   differences two rows and expects the flow to fall out, which is what happened on 2026-09-23.
   Nothing gates the two against each other and nothing can: the gap is the lag between finishing a
   milestone and flipping its row, which is a real property of the record rather than a defect in
   either column.
-- **A milestone dated in a week the series has no row for is dropped**, which is milestone 1 (boot
+- A milestone dated in a week the series has no row for is dropped, which is milestone 1 (boot
   to Rust on QEMU `virt`, and print to the PL011 UART) and 2026W28. `script/metrics` prints a stderr
   line naming it since 2026-09-23; before that it was silent. A reader summing the chart gets one
   fewer than the tree's dated blocks.
-- **Two of the three definitions are now shared, and the third is checked instead** (milestone 236,
-  2026-09-03). The `unsafe` census and the comment-and-literal strip the code and comment line split
+- Two of the three definitions are now shared, and the third is checked instead (milestone 236 (three derivations are
+  copied between scripts), 2026-09-03). The `unsafe` census and the comment-and-literal strip the code and comment line split
   is built on live in `helpers/rust_source.py`, which `script/lint` and this script both import, so
   there is one definition and nothing left to drift. The harness count could not be collapsed the
   same way: `script/lint` and `script/falsifications` attribute each harness to a workspace package
   out of `cargo metadata`, and this script reads blobs at revisions nobody has checked out and
   cannot run cargo against them. `script/lint` runs all three derivations and fails on a
   disagreement, which is the weaker answer and is said to be the weaker answer.
-- **A line inside a multi-line string literal counts as a comment line.** Wrong in principle,
+- A line inside a multi-line string literal counts as a comment line. Wrong in principle,
   negligible in this tree.
-- **The charts follow the reader's operating system colour preference, not GitHub's theme toggle.**
+- The charts follow the reader's operating system colour preference, not GitHub's theme toggle.
   GitHub serves an SVG in a markdown page as an `<img>`, so a media query inside it cannot see the
   host page. A reader whose GitHub theme disagrees with their OS gets the wrong background.
-- **`patches/` is outside the `unsafe` census**, inherited from `script/lint` along with its reason.
+- `patches/` is outside the `unsafe` census, inherited from `script/lint` along with its reason.
   That code does run on the machine, so it is a real hole rather than a boundary, and
   `notes/register-of-measures.md` records the blocks it leaves uncounted.
-- **`names_total` is not the sum of the naming columns**, which is the one place a column here
+- `names_total` is not the sum of the naming columns, which is the one place a column here
   breaks the pattern the milestone and decision columns set. It is every named thing in that week's
   tree; the four statuses count the ones whose header carries a block that parses. The gap is drawn
   as a band and explained in the register, and it is kept rather than folded into `Unrecorded`
   because silence is not a claim.
-- **The naming columns count signatures, not names.** A name can be ratified and bad, or provisional
+- The naming columns count signatures, not names. A name can be ratified and bad, or provisional
   and perfect. Nothing here reads a name, and `script/names`' own `BUGS` is the longer version: it
   cannot check that a recorded reason is still true, that a date is right, or that a `recorded`
   citation leads anywhere.
-- **Four kinds of named thing, and the tree names more than four kinds.** Crates, programs,
+- Four kinds of named thing, and the tree names more than four kinds. Crates, programs,
   `script/` entry points and Cargo packages carry provenance blocks, so those are what this counts.
   Public function and method names have been calef's call since 2026-08-23 and nothing counts them;
   types, `helpers/` helpers and directory names are outside `script/names`' surfaces too, and
   design/naming.md's `BUGS` carries what that leaves uncovered.
-- **`proposals_unnumbered` is a net count and cannot see the flow.** Five proposals have left the
+- `proposals_unnumbered` is a net count and cannot see the flow. Five proposals have left the
   directory and 81 remain; a flat line would be consistent with a stalled pile and with one
   draining as fast as it fills. The measurement that would tell them apart is the age of the oldest,
   which `script/roadmap --check` prints on every lint run and this column does not carry.
-- **`merged_pull_requests` can only see GitHub's default merge subject.** A merge made any other way
+- `merged_pull_requests` can only see GitHub's default merge subject. A merge made any other way
   is not counted and cannot be distinguished from an ordinary merge commit afterwards. The total
   matches what a maintainer counted by hand on 2026-09-21, which is evidence and not proof.
-- **A band that goes to zero across the whole chart window changes the colours of the bands after
-  it.** `series_of` drops an all-zero series and the palette is indexed over what survives, so when
+- A band that goes to zero across the whole chart window changes the colours of the bands after
+  it. `series_of` drops an all-zero series and the palette is indexed over what survives, so when
   2026W30 leaves the ten-week window the `before the convention` band disappears and every band
   below it in the by-model legend shifts one hue. The legend is redrawn with it, so nothing is
   mislabelled; a reader comparing two screenshots taken a week apart will still see a colour move.
   It is pre-existing behaviour of every chart here and it is recorded because the by-model panel is
   the first one certain to hit it.
-- **The cost and context columns carry seven limitations of their own**, from a capture that can
+- The cost and context columns carry seven limitations of their own, from a capture that can
   stop silently to a price [ledger](project-metrics/ledger.md) that re-prices history. They are listed where those columns are
   argued: [what this project costs, *Known limitations*](register-of-measures/project-cost.md#known-limitations).
-- **Four series were restated on 2026-09-24, and an older screenshot will disagree with each.**
+- Four series were restated on 2026-09-24, and an older screenshot will disagree with each.
   Opus 5.5 got its own column (`opus_5_5`), so this week's commits left *other models*, and Opus 4.8
   now draws inside that band because the palette has eight hues. The fatal-risks chart gained
   `fatal_risks_total` and an *unclassified* band, so 2026W36 to 2026W38 read nine rather than five,
   four and five. The coverage floor and the prose budget were backfilled from each week's own tree.
-- **The prose budget will be restated again** when milestone 586 (a prose ratchet in lint) lands,
+- The prose budget will be restated again when milestone 586 (a prose ratchet in lint) lands,
   because it shares one document scope with `script/lint` and may count documents this one does not.
-- **Nothing here is audited by anyone outside this project.** Stated once at the top and again here,
+- Nothing here is audited by anyone outside this project. Stated once at the top and again here,
   because a dashboard is exactly the artifact that makes a reader stop asking.
