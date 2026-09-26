@@ -1,6 +1,6 @@
 # 350. The comment ratio AGENTS.md quotes is wrong, and it climbs every week
 
-**Status: NOT-STARTED.** Filed 2026-09-03 as an unnumbered proposal by the milestone 247 sweep,
+**Status: SUPERSEDED.** 2026-09-24, by §177 (whether AGENTS.md quotes measured numbers at all), which calef decided that day: AGENTS.md drops its counts and points at `notes/project-metrics.md`, so the sentence this block would have corrected no longer exists (commit `e23df4a4d`, PR #1198). The rest of this block is the record as it stood before that ruling. Filed 2026-09-03 as an unnumbered proposal by the sweep of milestone 247 (follow-on work named by a finished milestone goes nowhere),
 from milestone 234's block; numbered 2026-09-19 by milestone 433. **Premise re-checked 2026-09-19 and
 it holds, and the number has drifted further.** `AGENTS.md` line 111 still reads "`kernel/src`
 measures 40% of them". `notes/project-metrics/weekly.csv`'s latest row (2026W38, 2026-09-14) gives
@@ -8,7 +8,7 @@ measures 40% of them". `notes/project-metrics/weekly.csv`'s latest row (2026W38,
 So the figure a reader meets in the front-door file is six and a half points low and still
 climbing.
 
-**Gate: DECISION.** `AGENTS.md` is calef's file and the correction is a one-line edit only he makes.
+**Gate: NONE.** Nothing is left to start: the ruling answered the question and the edit it asked for was calef's commit. What follows is the gate as it read before 2026-09-24. `AGENTS.md` is calef's file and the correction is a one-line edit only he makes.
 The measurement is already done and stored, so nothing else is owed: what is missing is the edit and
 a decision about whether a hand-copied number belongs in that file at all.
 
