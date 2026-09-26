@@ -330,6 +330,9 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 218 | DECIDED | [Carry a Kani patch so riscv64 is proved, and send it upstream](218-carry-a-kani-patch-so-riscv64-is-proved.md) |
 | 219 | DECIDED | [How the shell names an installed program to the spawner](219-naming-an-installed-program-to-the-spawner.md) |
 | 220 | DECIDED | [Signed builds: a vendor signs, a developer self-signs, and trusting a key is scoped](220-signed-builds-and-scoped-key-trust.md) |
+| 227 | PROPOSED | [How Tab reaches the shell: a resume message on the terminal wire, or none](227-a-resume-message-for-tab-completion.md) |
+| 228 | PROPOSED | [How a set of matched names reaches the progenitor](228-how-a-set-of-names-reaches-the-progenitor.md) |
+| 229 | PROPOSED | [How a bare name at the prompt reaches an installed program](229-how-a-bare-name-reaches-an-installed-program.md) |
 
 Two blocks that lived among the decisions are not decisions and moved out with the split, the same
 way milestone 76 moved four essays out of the roadmap: [the open design
