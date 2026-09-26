@@ -1,19 +1,57 @@
 ---
-status: PROPOSED
+status: DECIDED
 raised: 2026-09-24
+decided: 2026-09-26
+ratified_by: calef
 ---
 
 # 219. How the shell names an installed program to the spawner
 
 Raised 2026-09-24 by milestone 198 (a package manager, and the trivial install that makes a second
 customer possible)'s rung 3a consumer lane (`milestone/198-rung-3a-consumer`), which built the fetch
-and the digest check and stopped here. *(Section number provisional until the merge queue lands it.
-Written by a lane, on the maintainer's instruction to write this fork up rather than invent it.)*
+and the digest check and stopped here.
 
 Amended 2026-09-26 (UTC) on calef's question: *"What approach allows a developer to build on
-nife and then run what they build? What about running a script they write?"* A, B and C each answer
-only "run something installed". Option D, and the sections it touched, were added by the maintainer
-to answer both.
+nife and then run what they build? What about running a script they write?"* A, B and C answer
+only "run something installed". The maintainer added option D to answer both.
+
+## The ruling
+
+calef, 2026-09-26 (UTC, about 01:45 to 02:00Z): *"D with D2 seems right."* And on what an unvouched
+child may hold: *"Yes, allow the clock and config pages."*
+
+- Option D. The shell sends the executable's bytes as frames it owns. The progenitor hashes its
+  own copy. A digest in the activation set is vouched and runs with that entry's manifest. A miss
+  gets only what the caller delegated.
+- Gate D2. Running unvouched bytes requires a capability the owner gives a session (Fuchsia's
+  `vmex` shape), visible in `caps`.
+- An unvouched child may be given the read-only clock page and the configuration page. Never the
+  process domain, the network, entropy, the file service or anything else from the progenitor's
+  own table.
+
+The consequence, in calef's words: *"if we established multiple users and not every user got a
+shell that could launch unvouched programs, then those users would not be able to launch unvouched
+programs. We could constrain which users could do such things on nife."* The capability is handed
+out per session, by whatever builds sessions (`login`, milestone 233 (`login` dies on every boot)).
+
+Milestone 104 (the measurement continues past init)'s rule is restated by this ruling. "The
+progenitor runs nothing it cannot vouch for" becomes "the progenitor grants nothing of its own to
+what it cannot vouch for", and running what it cannot vouch for takes D2's capability.
+
+### Recorded limitations
+
+These are the maintainer's, raised with the ruling. They are not part of it.
+
+1. D2 constrains new native code, not new behaviour. A vouched interpreter runs a script as input,
+   so a session that holds an interpreter can do anything the interpreter can, with no D2
+   capability. A user who must run no new code must also not be given an interpreter.
+2. The capability is transferable unless it is granted without the right to pass it on. In this
+   kernel that is a capability without `GRANT` (`abi::rights::GRANT`): `SEND_CAP` and `CAP_INSERT`
+   both refuse to move one, as §12 (call/reply IPC)'s reply capability relies on. The maintainer recommends granting
+   it without `GRANT` by default, pending an architect; that is reversible. The tree shows one
+   consequence: a capability without `GRANT` cannot ride on a spawn request either. So under that
+   default, D2's capability is a progenitor endpoint the session invokes, held `WRITE` only, not a
+   token it sends along. The implementing lane proposes which shape is built.
 
 ## What is being decided
 
@@ -86,9 +124,7 @@ path. The shell reads it through the file service it already holds, into frames 
 budget, and sends them with whatever the line grants: output, input, a directory, `--mem`. The
 digest is in no table, so the child runs with exactly those grants and nothing the progenitor holds.
 The same request is what a build tool needs to run a test binary it just linked. So D is the shape
-milestone 172 (a capability-native subprocess) needs before `cargo` can hold a spawn endpoint. A
-needs a caller that knows names in the progenitor's table. D needs only bytes and grants the caller
-already holds.
+milestone 172 (a capability-native subprocess) needs before `cargo` can hold a spawn endpoint.
 
 A script. An interpreter is a program like any other, vouched or not, and the script is its
 input. The tree already has the grant for that: `FileSpec::Required { writable: false }`, one
@@ -102,8 +138,7 @@ strings in some form for any script to take a parameter.
 In the spawner that puts a parser and a name table inside the process that decides what runs, and it
 turns D back into A. In the shell it is a read of the first line, then an ordinary run of the
 interpreter with the script as its file grant. Plan 9 and Linux do it in `exec` because `exec` takes
-a path. D takes bytes, so there is no path for the spawner to follow. Redox's `relibc` already parses
-`#!` in userspace.
+a path; D takes bytes.
 
 ## Authority: what an unvouched child may hold
 
@@ -112,32 +147,28 @@ clock page, the process domain, the configuration page, entropy and the network 
 through `wants_network` in `spawn_service`). Under D those come only from a manifest the progenitor
 found by digest. An unvouched binary's own declaration is self-asserted and confers nothing.
 
-**Never, for unvouched bytes:** the process domain (it shows every process), the network, entropy,
-the file service itself, or anything else from the progenitor's own table. The clock and the
-configuration page are read-only and harmless to read; whether they are the exception is calef's
-call. A developer who needs the network for their build vouches for it first (§195 (a reviewed recipe vouches for a package), clause 3).
+The ruling allows the clock and configuration pages, nothing else. A developer who needs the
+network vouches for their build first (§195 (a reviewed recipe vouches for a package), clause 3).
 
 `grant_plan` gains a manifest for "no manifest": output, input, one optional directory and `--mem`,
 and nothing else. The shell binds a D line against it, so `caps ./a.out` previews exactly what will
 be delegated. It adds one row, `provenance: unvouched (digest <hex>)`, or the source that vouched.
-The shell can compute that preview itself, since it read the bytes. The progenitor's own hash is
-what enforces it, because the caller keeps write access to its frames and could change them after
-hashing. That is why the progenitor hashes its copy, not the frames.
+The shell computes that preview from the bytes it read. The progenitor hashes its own copy,
+because the caller keeps write access to its frames and could change them after hashing.
 
-Milestone 202 (every confinement test is a ritual until somebody breaks the confinement)
-gains one claim, stated and falsified in its
-shape: an unvouched child holds no capability the caller did not delegate. `unreachable_network_witness`
-(program id 15) is the fixture's shape: the new test runs its probe for all five manifest grants. It must go red when
-one of them is granted.
+Milestone 202 (every confinement test is a ritual until somebody breaks the confinement) gains one
+claim, stated and falsified in its shape: an unvouched child holds no capability the caller did not
+delegate, beyond the two pages the ruling allows. `unreachable_network_witness` (program id 15) is
+the fixture's shape. The new test probes the process domain, entropy and the network, and must go
+red when one of them is granted.
 
 ## Vouched, unvouched, and the trust root
 
 The kernel's trust root does not change. It vouches for the progenitor and the measurement table,
-and nothing about D touches either. Milestone 104 (the measurement continues past init)'s rule
-changes: "the progenitor runs nothing it cannot vouch for" becomes "the progenitor grants nothing of its own
-to what it cannot vouch for". That is a published claim, so it is the irreversible part of D.
+and nothing about D touches either. Milestone 104's rule
+changes, as the ruling records. That is a published claim, so it is the irreversible part of D.
 
-Three ways to hold the gate, and this is where the evidence points rather than a recommendation:
+Three ways to hold the gate were offered:
 
 - **D1. Vouch, then run.** The developer records the digest in the owner's table first (§195
   clause 3, already ruled) and D refuses anything not found. Milestone 104's rule survives
@@ -149,8 +180,8 @@ Three ways to hold the gate, and this is where the evidence points rather than a
 - **D3. Always allowed, with only the caller's grants.** Genode's and Redox's posture. Redox's own
   source calls its execute check advisory. Simplest, and it leaves no record that new code ran.
 
-The evidence points to D2. It is the only one of the three that makes running new code an
-authority someone holds, which is this system's whole claim about everything else.
+D2, the one ruled, is the only one that makes running new code an authority someone holds, which is
+this system's whole claim about everything else.
 
 ## Prior art, read 2026-09-26
 
@@ -174,38 +205,30 @@ authority someone holds, which is this system's whole claim about everything els
 
 ## The seven questions
 
-1. What else was considered, and why did each lose? Nothing loses yet, because this is the
-   syscall-adjacent kind of fork AGENTS.md says to give options on. B's argument problem is the
-   sharpest: it cannot be built well until milestone 205 lands, and it builds a second spawner,
-   which §208 argued against. A and C serve installed programs only. D serves all three cases.
+1. What else was considered, and why did each lose? B cannot be built well until milestone 205
+   lands, and it builds a second spawner, which §208 argued against. A and C serve installed
+   programs only. D serves all three cases.
 2. What does the tree already do? `DIR_BIT` is A's exact shape, data too big for a word. Milestone
    47 (navigation and naming)'s `PATH` lane priced `NAME_BIT` in those words and stopped at the wire
    change. `login` is B's shape. D's nearest analogue is the interruptible job, which already builds
    a child from an untyped the shell delegated. What D adds is the bytes.
-3. Prior art outside the tree. Above, read this session. Fuchsia is D's shape. Genode routes a
-   binary like any other session, which is A with the router as the table.
-4. Is the premise true? Checked above, three times. Reach was not the blocker. And "pass a file
-   capability" was not available, because no such capability exists.
+3. Prior art outside the tree. Above, read this session.
+4. Is the premise true? Checked above. Reach was not the blocker, and no file capability exists.
 5. What does each cost, measured? The table. D's line count is not measured, because nothing is
-   built. Its parts are a flag, a receive loop that maps and deletes, a hash the progenitor already
-   computes at boot, and a lookup. The one-slot claim follows from receiving one frame at a time
-   before the build takes its own slots. `script/swish-check`'s peak-slot line is what would confirm
-   it.
+   built. Its one-slot claim follows from receiving one frame at a time, and `script/swish-check`'s
+   peak-slot line would confirm it.
 6. How reversible, and who has acted on it? The wire is ours alone: the shell and the progenitor
    ship in one image. It is still a contract every future shell is written against, and milestone
    39 (repository structure for a loosely-coupled OS)'s split exists to allow a third-party one.
-   D2's capability and the restated milestone 104 rule are published claims, and those are the
-   irreversible parts.
-7. Would we still choose it at equal cost? For D, yes. It keeps names out of the spawner, where
-   milestone 31 (a capability shell: designation is authorization) gives designation to the
-   person at the prompt. It charges the caller for the pages, as
-   the rest of this kernel does. And it serves an installed program, a fresh build and a script with
-   one request instead of three. None of that is about effort.
+   D2's capability and milestone 104's restated rule are the irreversible parts.
+7. Would we still choose it at equal cost? For D, yes. It keeps names out of the spawner (milestone
+   31 (a capability shell: designation is authorization)), charges the caller for the pages, and
+   serves every case with one request. None of that is about effort.
 
 ## The two questions A would bring with it, and D inherits
 
 Both are reversible until something outside this repository reads them, so each carries a
-recommendation. They block only after A or D.
+recommendation. Both remain open; D's first build takes each provisionally.
 
 - The activation table's shape. Recommended: text, one `<name> <package stem> <digest>` line per
   active program, a file per generation plus a one-line `current` naming the generation. That is
@@ -216,16 +239,8 @@ recommendation. They block only after A or D.
   refuse an installed program whose manifest asks for more than `Prog::Uptime`'s, with a `BUGS`
   entry, rather than answer §197 by accident.
 
-## What is blocked, and what happens if calef says no
+## What the ruling unblocks
 
-**Blocked until answered**: installing, running, surviving a reboot, rolling back and removing,
-which is all of rung 3a after "verified by digest". Running anything a developer builds on nife is
-blocked on D or something like it, and so is milestone 172's subprocess primitive. The fetch and the
-check are built and gated (notes/packages.md). A "no" to all four leaves nife able to verify a
-package it cannot run: rung 3 stops, and with it fatal risk 8's only route to a verdict.
-
-Separately, D's gate (D1, D2 or D3) is calef's alone, because it restates milestone 104's rule.
-Scripts also wait on §170 for string arguments, whichever option wins here.
-
-Blocked independently, and closed: the booted system had no network when this was written.
-Milestone 590 (the booted system starts its network stack) closed that.
+Rung 3a of milestone 198 after "verified by digest": installing, running, surviving a reboot,
+rolling back and removing. Also running anything a developer builds on nife, and milestone 172's
+subprocess primitive. Scripts still wait on §170 for string arguments.
