@@ -1,6 +1,8 @@
 ---
-status: PROPOSED
+status: DECIDED
 raised: 2026-09-26
+decided: 2026-09-26
+ratified_by: calef
 ---
 
 # 220. Signed builds: a vendor signs, a developer self-signs, and trusting a key is scoped
@@ -8,29 +10,65 @@ raised: 2026-09-26
 Raised 2026-09-26 (UTC) by calef: *"I do wonder if there is a case for software vendors signing
 their builds in their manifest and local developers would just self sign. Does that make sense?"*
 
-A proposal lane (`proposal/signed-builds`) wrote this section on the maintainer's instruction. Its
-number and every name in it are provisional. Nothing here is built.
+A proposal lane (`proposal/signed-builds`) wrote this section on the maintainer's instruction. Every
+name in it is provisional. Nothing here is built; the build is the proposal
+[`design/roadmap/proposals/install-time-signature-verification.md`](../roadmap/proposals/install-time-signature-verification.md).
 
-## The short answer
+## Ruled 2026-09-26 (UTC)
 
-Yes for a vendor, and for a developer whose build crosses machines: a board that trusts a host key
-takes every rebuild without the re-vouch of §219 (how the shell names an installed program), option
-D1. No for a developer building on nife itself, where a self-signing key held by a local service is
-D2's capability with a key pair bolted on.
+calef answered both questions "Yes", recorded by `maintainer/220-ruling`, which invented no part of
+it.
+
+1. Trusting a key is an owner-written line per key with a ceiling, a subset of `domain entropy
+   network`: the grants the progenitor endows from a vouched manifest. An install asking more than
+   the ceiling is refused, not narrowed. Signatures are checked at install and the digest is then
+   pinned (S2), never at spawn. No key ships in any image.
+2. The signature travels beside the binary, not inside it. Under §197's M2 the manifest is already
+   inside the hashed bytes, so a signature over the digest covers it. An in-file signature needs a
+   hashed range that excludes it: a second digest definition, and parsing unverified bytes before
+   hashing. Authenticode's MS13-098 is the precedent.
+3. Revocation, as the maintainer laid it out and calef accepted it:
+   - Each installed entry records which key vouched it.
+   - Removing a key's trust line refuses future installs and writes a new activation generation
+     without that key's programs. calef ruled "Yes" that this drop is automatic. The dropped
+     programs fall to unvouched, runnable only by a session holding the D2 capability of §219
+     (how the shell names an installed program to the spawner), and rollback (§208) undoes a
+     mistaken removal.
+   - A deny list of digests, vendor-published or owner-local, refuses installs and drops installed
+     copies in a new generation.
+   - A vendor statement "key K revoked as of T" drops K's installs made after T, on machines that
+     fetch it.
+   - A machine that never fetches cannot learn. There is no good answer to that, and it is bounded
+     by install-time checking and the key's ceiling.
+   - Legitimate rotation: the old key signs a statement naming the new one, Android's
+     proof-of-rotation shape.
+
+Deferred, not ruled: expiring trust statements (TUF's shape), until the verifier has a clock it can
+trust. Not ruled either, and kept as a recommendation: build no signer on nife until a build made on
+nife must run somewhere else.
+
+For the architect, three things this record found and did not settle:
+
+- `CLAUDE.md` rule 6 still says "vendor the crypto", which §46's 2026-07-31 amendment contradicts.
+  This lane may not edit `CLAUDE.md`.
+- The ruling as relayed said the dropped programs are runnable by a D2 holder "under §170's option
+  A". §170's A is an argv and §170 is `PROPOSED`, so the record above cites §219's D2 alone. Correct
+  it if another section was meant.
+- The signed statement's bytes and the algorithm were never asked. The proposal builds the 54-byte
+  statement and Ed25519 provisionally; both become irreversible when anyone outside signs one.
 
 ## The premise, checked
 
 - Vouching is by digest today. The progenitor looks the executable's SHA-256 up in the live
-  generation (`activation_set::lookup_digest`). Since #1320 a miss is refused with
-  `SPAWN_UNVOUCHED`, because D2 is not built. The crate's own documentation says nothing on a target
-  writes a generation yet.
+  generation (`activation_set::lookup_digest`), and a miss runs only under D2's capability.
+  Corrected at the ruling: since milestone 198 (a package manager, and the trivial install), 2026-09-26, the progenitor is also the installer
+  (`package install`, notes/packages.md), so "the installer" below is a progenitor request today.
 - §195 (a reviewed recipe vouches for a package) clause 4 says no long-lived signing key is held by
   anyone, for now. It deferred a publisher's signature (its T2) rather than refusing it. Anything
   below that adds a key amends clause 4.
 - The manifest question is settled. calef ruled M2 of §197 (a package is one archive file) on
-  2026-09-26, not yet recorded there: the manifest is a `PT_NOTE` in the executable (#1319). So the
-  executable's digest already covers its manifest. M1, a sibling member, is the refused alternative
-  and appears here only as that.
+  2026-09-26: the manifest is a `PT_NOTE` in the executable (#1319). So the executable's digest
+  already covers its manifest. M1, a sibling member, is refused.
 - What a vouch confers is five booleans. `spawn_service` reads `clock`, `domain`, `config`,
   `entropy` and `network` from a vouched manifest (`wants_clock` through `wants_network`).
   Everything else a child holds comes from the caller's line. §219 already gives an unvouched child
@@ -43,9 +81,8 @@ D2's capability with a key pair bolted on.
   programs. Its only prompt output is a typed refusal. The nearest rule is in `notes/installing.md`:
   a confirmation is asked by the service that grants, never by the program asking for the grant.
 - Per-session scope has a mechanism gap. Endpoints carry no sender identity (§26 (the fault
-  endpoint), part 5, declined badges, and §33 (the compositor's authority is memory) builds around
-  their absence). The progenitor cannot tell two sessions apart on one endpoint. So each distinct
-  scope a session may hold is a distinct endpoint.
+  endpoint), part 5, declined badges). So each distinct scope a session may hold is a distinct
+  endpoint.
 
 ## What is signed
 
@@ -82,7 +119,7 @@ opt-in, because too many installers broke. Zeroing a fixed-size descriptor rathe
 range closes that hole: the length and every other byte stay covered. It does not remove the second
 digest or the parse before the hash.
 
-Placement cannot be taken back once a vendor signs into it, so this is options only.
+Placement cannot be taken back once a vendor signs into it. calef ruled Beside.
 
 ## How trust in a key is represented
 
@@ -111,27 +148,24 @@ key ships in an image somebody else runs". A key in the owner's table is removed
 | S3. S2 plus a transparency log | as S2, plus an inclusion proof from a public log | installer, plus the log's key | as S2, plus a round trip to the log | detection, not prevention: a stolen key's use is public | a log client, and somebody runs a log |
 | S4. A source signs its catalogue (TUF shape) | §195's reviewed recipe, signed per source | installer | none for a vendor's users; a developer's loose build is untouched | expiry and version metadata give freshness | a TUF metadata parser |
 
-S4 is §195's deferred T2. §195 found that where a signature exists, it covers the index, not each
-package. A per-build signature serves the one case an index does not: bytes with no catalogue, which
-under §219 D is how a developer's build reaches another machine.
+S4 is §195's deferred T2, which signs the index, not each package. A per-build signature serves
+bytes with no catalogue, which under §219 D is how a developer's build reaches another machine.
 
 ## Recommendations on the reversible parts
 
 1. On nife itself, a developer does not sign. S0 with D2 covers edit, compile and run. If an
    unvouched build needs the network, the change is a ceiling on D2's capability, one endpoint per
    ceiling. That widens §219's ruling, it is calef's to widen, and it needs no cryptography.
-2. The check runs at install (S2), not at spawn (S1). The process that decides what runs keeps
-   SHA-256 and a lookup. §26 wanted a signature "in addition to the measured root (so the hash stays
-   the floor if key handling fails)", and S2 is that sentence built. A pinned install also survives
-   its key's removal, which is a cost as well as a benefit; the deny line answers it.
-3. A key's scope is the per-key ceiling above: owner-written, refused rather than narrowed, and no
-   default key in any image.
+2. Ruled: S2, not S1. The process that decides what runs keeps SHA-256 and a lookup. §26 wanted a
+   signature "in addition to the measured root (so the hash stays the floor if key handling
+   fails)", and S2 is that sentence built.
+3. Ruled: the per-key ceiling above.
 4. Per-session scope, the maintainer's framing, holds with one change. What a session holds cannot
    be "trust key K", because that needs sender identity the kernel lacks. It is an endpoint to an
    installer instance configured with the keys and ceilings that session may use. `login` hands it
-   out per session, as §219 records for D2. Two sessions with different trust hold two endpoints.
-   The activation set is still one per machine, so what user A installs, user B can run with B's own
-   grants. That is §208's shape and an existing limitation, not a new one.
+   out per session, as §219 records for D2. The activation set is still one per machine, so what
+   user A installs, user B can run with B's own grants. That is §208's shape and an existing
+   limitation, not a new one.
 5. S3 and S4 wait for a second vendor.
 
 ## Self-signing, and what it proves
@@ -154,18 +188,9 @@ no signer on nife until a build made on nife must run somewhere else.
 
 ## Revocation
 
-There is no good answer for a stolen key on a machine that stays offline. Every system read either
-checks online or has no revocation at all.
-
-| Event | S2's answer | Cost | Prior art |
-|---|---|---|---|
-| Stolen vendor key | the owner removes the key line, so new installs stop | reaches only owners who hear of it; pinned installs remain until a deny line names them | Apple revokes through OCSP and notarization tickets; Android has none, only rotation, which a thief can also sign |
-| A developer leaves | remove their key; `login` stops handing their session the installer endpoint | what they signed and installed runs until removed | IMA's `.blacklist` keyring |
-| A bad release, key intact | a `deny <digest>` line, or roll back a generation (§208) | one more table read at spawn | FreeBSD `pkg`'s revoked-fingerprint directory |
-| Planned rotation | a new key line, with a transition statement signed by the old key | a second statement type | Android v3's proof-of-rotation; TUF's root N+1 signed by N's threshold |
-
-Recommended: key removal plus a deny list, both owner-written. Expiry, TUF's defence against freeze
-attacks, needs a clock the verifier can trust, and the clock page's trustworthiness was not checked.
+Ruled above. Every system read either checks online or has none. Apple revokes through OCSP.
+Android only rotates, and a thief can sign a rotation too. IMA keeps a `.blacklist` keyring and
+FreeBSD `pkg` a directory of revoked fingerprints.
 
 ## The crypto dependency
 
@@ -192,23 +217,20 @@ Taking `ed25519-dalek` into the shipping graph is a separate §46 decision.
 
 ## The seven questions
 
-1. What else was considered, and why did each lose? The options table and the recommendations give
-   each refusal its reason.
-2. What does this tree already do in the analogous case? §26 measured the boot program by digest and
-   declined a signature, naming key custody. §195 keeps digests and defers signatures. Milestone 65
+1. What else was considered: the options table and the recommendations give each refusal its
+   reason.
+2. The analogous case in this tree: §26 measured the boot program by digest and declined a
+   signature, naming key custody. §195 keeps digests and defers signatures. Milestone 65
    put a key behind an endpoint. The activation set is versioned and owner-written. S2 reuses all
    four.
-3. What is the prior art outside the tree? Read, and cited [below](#prior-art-read-2026-09-26).
-4. Is the premise true? Mostly. Three corrections above: crypto is depended on and not vendored,
+3. Prior art outside the tree: read, and cited [below](#prior-art-read-2026-09-26).
+4. The premise: mostly true. Three corrections above: crypto is depended on and not vendored,
    §170 has no confirmation step, and per-session key trust costs an endpoint per scope.
-5. What does each option cost, measured? The figures above; target cycles and the installer's size
-   are unmeasured.
-6. How reversible is it, and who has already acted on it? Nobody has acted; no key or signature
-   exists. The split is in the next section.
-7. Would we still choose this if both options cost the same? Yes for S2 over S1. S1's one advantage
-   is no install step, and the reason for S2 is that no curve arithmetic sits in the process that
+5. Cost: the figures above; target cycles and the installer's size are unmeasured.
+6. Reversibility: nobody has acted; no key or signature exists. The split is in the next section.
+7. At equal cost: yes for S2 over S1. S1's one advantage is no install step, and the reason for S2 is that no curve arithmetic sits in the process that
    builds every child. Yes for no signer on nife: the reason is fewer moving parts, not effort. For
-   Beside against Inside this section gives options only.
+   Beside against Inside this section gave options only; calef ruled Beside.
 
 ## What cannot be undone, and what can
 
@@ -217,7 +239,7 @@ Irreversible once anyone outside acts on it, so options only:
 - The signed statement. Options: the 54-byte statement above; a signature over the raw file, which
   is simpler and has no algorithm byte; or a statement that also lists a manifest digest, which only
   M1 needed.
-- The placement: Beside or Inside.
+- The placement. Ruled Beside.
 - The algorithm and key encoding. Options: Ed25519 (RFC 8032, a 32-byte key, a 64-byte signature);
   ECDSA P-256, which the provider also carries and whose crate says its curve arithmetic "has never
   been independently audited"; or a post-quantum scheme, which nothing in the tree carries.
@@ -230,10 +252,8 @@ Everything else recommended above is reversible code.
 
 ## What this blocks and unblocks
 
-- D2's build is not blocked; S2 composes with it as ruled.
-- §170 holds no confirmation step to unblock. If one is wanted, the granting service asks
-  (`notes/installing.md`).
-- Fatal risk 8 (nobody needs it) does not move: a first customer installs by digest vouching.
+Nothing is blocked; S2 composes with D2 as ruled. Fatal risk 8 (nobody needs it) does not move: a
+first customer installs by digest vouching.
 
 ## Prior art, read 2026-09-26
 
@@ -261,9 +281,3 @@ Everything else recommended above is reversible code.
 
 `docs.rs` lists `ed25519-dalek` 3.0.0 as current, while `notes/cryptography-provider.md` called
 2.2.0 the "current line" on 2026-09-20. Not reconciled here.
-
-## The two questions for calef
-
-1. Should trusting a key mean an owner-written line with a ceiling of progenitor grants, checked at
-   install, with no key in any image?
-2. Does a signature travel beside the binary, or inside it in a note the hash excludes?
