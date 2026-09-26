@@ -4,7 +4,9 @@
 the gap #1314 recorded in `notes/foreign-program-arguments.md`'s `BUGS` section. *(Number and title
 provisional: the integrator mints the number at merge, and the title is a draft until an architect
 names it.)* The progenitor's `std` layout was built on 2026-09-26 by lane
-`milestone/595-std-layout`. See "What is built" below.
+`milestone/595-std-layout`. Its x86_64 half was promoted from the proposal
+`the-x86-64-progenitor-serves-entropy-from-rdseed` and built the same day by lane
+`milestone/595-x86-std`. See "What is built" below.
 
 **Gate: DECISION §170, DECISION §171.** Two open forks each stop a different step between a typed
 line and a running `rg`, and both are calef's. A third, §219, was ruled on 2026-09-26. The sections
@@ -72,6 +74,73 @@ What it took:
   for anything the progenitor would plan and not deliver: a file, an input, `--mem`, a domain, a
   second stream or the network.
 
+## What is built on x86_64 (2026-09-26, lane `milestone/595-x86-std`)
+
+`std_exerciser` runs from the x86_64 prompt, and so do the four `uuid` lines that leg had omitted
+since milestone 182 (x86_64's own interactive-boot entry point). `script/swish-check --arch x86_64` now types 81 of 85 lines on its first boot; the four it
+omits need a NIC (two network runs, two package fetches). Green on patagonia under OVMF three
+times, the last after rebasing onto #1318's merge (442 s for the first boot).
+
+The gap was entropy. The progenitor built its entropy service only from a virtio-rng on a
+virtio-mmio slot, and `q35` has no mmio bus.
+
+### Who confirms `RDSEED` exists: the kernel
+
+That was the proposal's open question, and it was
+decided as a reversible choice, for three reasons that do not depend on effort:
+
+- The tree already does it this way. `entropy_service::is_instruction_backend_available` reads the
+  feature bit from `arch::isa`'s boot record, `components/src/entropy.rs` says it trusts its
+  spawner's choice of mode, and the installer (`install_service`) already takes the instruction
+  service on the booted x86_64 path.
+- It is the only answer with an aarch64 twin. `ID_AA64ISAR0_EL1` is not readable at EL0, so a
+  progenitor that ran `CPUID` itself would be an x86_64 special case (DECISIONS §19).
+- Detection stays in `kernel/src/arch/`, and `crates/system_initializer` gains no
+  `cfg(target_arch)`.
+
+### How it reaches the progenitor: a built service, not a flag
+
+`kernel::user::boot_instruction_entropy`
+(provisional) calls `entropy_service::ensure(Bus::Instruction)` when no virtio-rng was granted,
+reads the readiness report before the progenitor starts, and grants the request endpoint at slot 16,
+`BootEndowment::entropy_ep` (provisional). This is the file service's shape (`fs_ep`, slot 5). The
+three `START` words are spent, and a bit in a page would be a second format for one fact. No new
+syscall, method or object type. The progenitor probes slot 16 before its first retype, because
+after that a first-free object could sit there.
+
+### A machine without the instruction refuses loudly
+
+Falsified once with `NIFE_CPU='max,-rdseed'`.
+The kernel printed `entropy : NONE. No virtio-rng device, and this CPU has no seed instruction
+(RDSEED, RNDRRS), so nothing at the prompt can draw random bytes and there is no login.` Then the
+gate's new entropy-source check failed on that sentence, and `std_exerciser` died with `std::random`'s
+own refusal. A first draw of all zeros gets a `REFUSED` sentence and no grant. There is no fallback to
+`RDRAND` or to software.
+
+The gate now reads the source on every leg: swish-check asserts the progenitor's
+`entropy service up` sentence, naming a virtio-rng on aarch64 and riscv64 and the seed instruction
+on x86_64, with the kernel's refusal as the negative.
+
+### The machines
+
+QEMU's `-cpu max` (both x86_64 runners' default) implements `RDSEED`; the kernel's
+tour prints `rdseed supported (cpuid leaf 7 ebx.18)`. No `-cpu` change was needed. xenon's
+i5-7500T is Kaby Lake, and `RDSEED` arrived with Broadwell, so it has one (from Intel's
+documentation, recalled, not read on xenon today); `design/fatal-risks/the-confined-driver.md`
+already records xenon's entropy source as `rdseed`. A xenon boot is not part of this proof.
+
+### What switching on the login stack changed
+
+`have_login_stack` gates on entropy, so x86_64 now
+builds `credentialer`, `identity_provisioner`, `login` and the audit receiver at boot, for the
+first time. What the gate sees: one more line before the prompt, `progenitor: login credentials
+provisioned -- identity 'operator' password '...'`. The prompt is not behind the login, on any leg,
+so no typed line changed. No user thread was killed after the hand-over. The capability-slot peak
+at the hand-over report is 22 of 24, read by a temporary instrument (`capability::highest_seen`
+printed beside the report, not committed), against 17 of 24 before. That is aarch64 and riscv64's
+figure, which is what the proposal predicted. The x86_64 gauge line is still stale for milestone
+182's reason, so this number is not re-read by anything.
+
 ## What it waits on
 
 - §219 (how the shell names an installed program to the spawner), decided: option D with gate D2
@@ -128,13 +197,18 @@ A boot test, `shell_runs_std_tests.rs` (provisional name), drives a scripted she
 
 ## BUGS
 
-- x86_64 omits the `std_exerciser` line, for the four `uuid` lines' reason: the progenitor on
-  x86_64 builds no entropy service, and `std_exerciser` asserts two draws from one. `caps
-  std_exerciser` runs there. The layout code is the same on all three architectures; what x86_64
-  lacks is a device the progenitor can serve randomness from. Proposed milestone (provisional):
-  the x86_64 progenitor builds its entropy service from `RDSEED`, which `components/src/entropy.rs`
-  already serves in `MODE_INSTRUCTION` and the kernel harness already uses. It is not done here
-  because building entropy on x86_64 also turns on the login stack there, which gates on it.
+- The hardware bytes are served as the instruction returns them: unmixed, and not health-tested
+  after the first draw. That is DECISIONS §137 (a hardware TRNG with no published health-test claim)'s option A, which every other backend here already
+  does; B or C is calef's (§137 is `PROPOSED`). Until it is decided nothing may claim
+  cryptographic-quality randomness on x86_64 either.
+- aarch64 takes the same path on a CPU with `FEAT_RNG` and no virtio-rng, since the function is
+  arch-neutral. That arm has not run at the prompt. Every aarch64 swish-check boot has a
+  virtio-rng, and the default TCG CPU (`cortex-a72`) has no `RNDRRS`.
+- On a boot where the installer ran first, `entropy_service::ensure` has already handed it the
+  readiness report and the kernel grants the service unread. The installer does not check the
+  verdict either, so a condemned source would reach the progenitor; it answers `NO_ENTROPY` to
+  every request, the password draw fails, and no login stack is built. Loud enough to notice, not
+  a sentence.
 - A `std` child holds `WRITE` on the region it is built in, because that region is its heap. A
   program that `SPLIT`s it pins it, and `job_undertaker` can then never reclaim it: one region
   lost from the pool until reboot. nife's `std` never splits (its allocator only `MAP`s), so this
@@ -156,8 +230,9 @@ A boot test, `shell_runs_std_tests.rs` (provisional name), drives a scripted she
 
 ## Follow-on
 
-- **Proposed.** x86_64's missing entropy service, which is why its leg omits the `std_exerciser`
-  line: `design/roadmap/proposals/the-x86-64-progenitor-serves-entropy-from-rdseed.md`.
+- **Done.** x86_64's missing entropy service, promoted from
+  `design/roadmap/proposals/the-x86-64-progenitor-serves-entropy-from-rdseed.md` into this
+  milestone. See "What is built on x86_64".
 - **Recorded.** A `std` child's `WRITE` on its own region, the unexercised directory half and the
   unwired network half are in `crates/system_initializer/src/lib.rs`, in `StdLayout`'s BUGS.
 - **Outstanding.** Everything past the layout. A `std` program the shell names by §219's option D,
