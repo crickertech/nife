@@ -775,9 +775,14 @@ pub fn write_say(s: Say, out: &mut dyn FnMut(&[u8])) {
 
 /// Write where the shell is, relative to its own root. A shell holding no directory has no position
 /// to print, and the caller says so with [`Say::NoDirectory`] instead of calling this.
-pub fn write_pwd(cwd: &Cwd, out: &mut dyn FnMut(&[u8])) {
-    let mut buf = [0u8; nav::RENDER_MAX];
-    let n = cwd.render(&mut buf);
+///
+/// It takes the whole [`Holdings`] rather than the position alone because a two-grant shell has no
+/// unlabeled root, since milestone 154 (a process that holds two directory capabilities): `pwd`
+/// there prints `/b/x`, the label leading, so the answer is
+/// still a path the shell takes back ([`Holdings::render`]).
+pub fn write_pwd(holdings: &Holdings, out: &mut dyn FnMut(&[u8])) {
+    let mut buf = [0u8; grant_plan::PLACE_MAX];
+    let n = holdings.render_cwd(&mut buf);
     out(b"  ");
     out(&buf[..n]);
     out(b"\n");
@@ -1160,7 +1165,7 @@ pub fn write_holdings(
             out(b"    namespace: names bound beside the one root ('bind', milestone 47)\n");
         }
         for entry in holdings.binds.iter() {
-            write_bind_row(entry, out);
+            write_bind_row(&holdings, entry, out);
         }
     }
     // **The clock, and the rights row is the whole of it** (milestone 86). This shell reads the page
@@ -1187,15 +1192,13 @@ pub fn write_holdings(
 }
 
 /// One row of `bind`'s own namespace section: the name it was filed under, and the real position
-/// it resolves to (not the label of the tree it is inside, which a one-grant shell has none of and
-/// a live two-grant shell does not exist yet to print for real; see the `bind` roadmap section's
-/// own honest caveat).
-fn write_bind_row(entry: &nav::BindEntry, out: &mut dyn FnMut(&[u8])) {
+/// it resolves to, led by its tree's label when this shell holds two ([`Holdings::render`]).
+fn write_bind_row(holdings: &Holdings, entry: &nav::BindEntry, out: &mut dyn FnMut(&[u8])) {
     out(b"      bind ");
     out(entry.name());
     out(b" -> ");
-    let mut buf = [0u8; nav::RENDER_MAX];
-    let n = entry.pos().render(&mut buf);
+    let mut buf = [0u8; grant_plan::PLACE_MAX];
+    let n = holdings.render(entry.which(), entry.pos(), &mut buf);
     out(&buf[..n]);
     out(b"\n");
 }
@@ -1303,13 +1306,15 @@ pub fn write_caps(
         };
         match grant_plan::plan_stage(&spec, holdings, expanded, streams) {
             Err(refusal) => return write_refusal(&spec, refusal, out),
-            Ok(e) => write_preview(&e, out),
+            Ok(e) => write_preview(&e, &holdings, out),
         }
     }
 }
 
-/// Write the endowment a resolved invocation would hand the new process.
-pub fn write_preview(e: &Endowment, out: &mut dyn FnMut(&[u8])) {
+/// Write the endowment a resolved invocation would hand the new process. `holdings` is what the
+/// planning shell held, which is how a directory grant's position is printed with its tree's label
+/// in a two-grant shell ([`Holdings::render`]).
+pub fn write_preview(e: &Endowment, holdings: &Holdings, out: &mut dyn FnMut(&[u8])) {
     out(b"  ");
     out(e.prog.name().as_bytes());
     out(b" would grant the new process, and nothing else:\n");
@@ -1372,8 +1377,8 @@ pub fn write_preview(e: &Endowment, out: &mut dyn FnMut(&[u8])) {
             out,
         );
         out(b"endpoint  dir      ");
-        let mut buf = [0u8; nav::RENDER_MAX];
-        let n = g.dir.render(&mut buf);
+        let mut buf = [0u8; grant_plan::PLACE_MAX];
+        let n = holdings.render(g.which, g.dir, &mut buf);
         out(&buf[..n]);
         out(b"  (the directory holding ");
         // **The names, all of them, and this is the point of previewing a set at all.** `caps rm
@@ -2154,12 +2159,17 @@ mod tests {
         // The leading slash is this shell's root, not the system's. A shell holding one directory
         // capability has no name for anything above it, so `/` at depth zero is the honest answer
         // rather than a borrowed one, and `pwd` is the only place a user sees it.
-        assert_eq!(shown(|o| write_pwd(&Cwd::root(), o)), "  /\n");
+        assert_eq!(shown(|o| write_pwd(&Holdings::default(), o)), "  /\n");
 
         let mut cwd = Cwd::root();
         assert!(cwd.descend(b"docs"));
         assert!(cwd.descend(b"drafts"));
-        assert_eq!(shown(|o| write_pwd(&cwd, o)), "  /docs/drafts\n");
+        let holdings = Holdings {
+            dir: true,
+            cwd,
+            ..Holdings::default()
+        };
+        assert_eq!(shown(|o| write_pwd(&holdings, o)), "  /docs/drafts\n");
     }
 
     #[test]
@@ -2259,26 +2269,30 @@ mod tests {
     #[test]
     fn a_memory_grant_is_a_row_and_no_grant_is_no_row() {
         let mut e = endowment(Prog::MemoryGrantDepleter);
-        assert!(!shown(|o| write_preview(&e, o)).contains("untyped"));
+        assert!(!shown(|o| write_preview(&e, &Holdings::default(), o)).contains("untyped"));
         e.mem_pages = 16;
-        assert!(shown(|o| write_preview(&e, o)).contains("cap 1  untyped   16 pages"));
+        assert!(
+            shown(|o| write_preview(&e, &Holdings::default(), o))
+                .contains("cap 1  untyped   16 pages")
+        );
     }
 
     #[test]
     fn append_and_truncate_differ_in_exactly_one_line_of_the_preview() {
         let grant = grant_plan::FileGrant {
+            which: grant_plan::nav::Which::A,
             dir: Cwd::root(),
             name: grant_plan::expand::Name::new(b"out.txt").expect("a nameable file"),
             writable: true,
         };
         let mut e = endowment(Prog::Date);
         e.sink = line::Sink::File(grant, line::Mode::Truncate);
-        let truncate: Vec<String> = shown(|o| write_preview(&e, o))
+        let truncate: Vec<String> = shown(|o| write_preview(&e, &Holdings::default(), o))
             .lines()
             .map(String::from)
             .collect();
         e.sink = line::Sink::File(grant, line::Mode::Append);
-        let append: Vec<String> = shown(|o| write_preview(&e, o))
+        let append: Vec<String> = shown(|o| write_preview(&e, &Holdings::default(), o))
             .lines()
             .map(String::from)
             .collect();
@@ -2300,11 +2314,12 @@ mod tests {
     fn a_directory_grant_prints_every_name_and_says_whether_r_was_typed() {
         let mut e = endowment(Prog::Rm);
         e.dir = Some(grant_plan::DirGrant {
+            which: grant_plan::nav::Which::A,
             dir: Cwd::root(),
             names: listing(&[b"a.txt", b"b.txt"]),
             subtree: false,
         });
-        let without = shown(|o| write_preview(&e, o));
+        let without = shown(|o| write_preview(&e, &Holdings::default(), o));
         assert!(without.contains("a.txt b.txt"), "{without}");
         assert!(
             without.contains("no -r, so it cannot even look"),
@@ -2314,7 +2329,7 @@ mod tests {
         if let Some(g) = e.dir.as_mut() {
             g.subtree = true;
         }
-        let with = shown(|o| write_preview(&e, o));
+        let with = shown(|o| write_preview(&e, &Holdings::default(), o));
         assert!(with.contains("-r grants the walk"), "{with}");
     }
 
@@ -2324,11 +2339,14 @@ mod tests {
         // clock is the progenitor's to endow, no token could designate it, and it is still a capability the
         // child holds. So it is printed, and it is printed as read-only, which is the whole of why
         // there is no `date -s`.
-        let s = shown(|o| write_preview(&endowment(Prog::Date), o));
+        let s = shown(|o| write_preview(&endowment(Prog::Date), &Holdings::default(), o));
         assert!(s.contains("cap 1  frame     clock"), "{s}");
         assert!(s.contains("read the time and not set it"), "{s}");
         // And a program that declares no clock is not given a row that says it has one.
-        assert!(!shown(|o| write_preview(&endowment(Prog::Wc), o)).contains("clock"));
+        assert!(
+            !shown(|o| write_preview(&endowment(Prog::Wc), &Holdings::default(), o))
+                .contains("clock")
+        );
     }
 
     #[test]
@@ -2336,11 +2354,14 @@ mod tests {
         // `clock`'s twin: the same preview claim for the same reason. `printenv`'s config page is
         // the progenitor's to endow, no token on the line could designate it, and the preview says so before
         // anything is spawned.
-        let s = shown(|o| write_preview(&endowment(Prog::Printenv), o));
+        let s = shown(|o| write_preview(&endowment(Prog::Printenv), &Holdings::default(), o));
         assert!(s.contains("cap 1  frame     config"), "{s}");
         assert!(s.contains("read-only"), "{s}");
         // A program that declares no config page is not given a row that says it has one.
-        assert!(!shown(|o| write_preview(&endowment(Prog::Wc), o)).contains("config"));
+        assert!(
+            !shown(|o| write_preview(&endowment(Prog::Wc), &Holdings::default(), o))
+                .contains("config")
+        );
     }
 
     #[test]
@@ -2349,7 +2370,7 @@ mod tests {
         // A process that draws a key and a process that hardcodes one look identical from outside,
         // so "does this program depend on unpredictable bytes" is a question no observation of a
         // running system answers. This row answers it before anything is spawned.
-        let s = shown(|o| write_preview(&endowment(Prog::Uuid), o));
+        let s = shown(|o| write_preview(&endowment(Prog::Uuid), &Holdings::default(), o));
         assert!(s.contains("cap 9  endpoint  entropy"), "{s}");
         // `WRITE`, and the word is the claim rather than decoration: it is the right to `CALL` the
         // service and not the right to receive another client's request, nor to hand a random
@@ -2360,8 +2381,14 @@ mod tests {
         assert!(s.contains("draws no randomness at all"), "{s}");
         // And a program that declares no entropy is not given a row that says it has one. This is
         // the refusal, in the one place a person meets it before anything runs.
-        assert!(!shown(|o| write_preview(&endowment(Prog::Date), o)).contains("entropy"));
-        assert!(!shown(|o| write_preview(&endowment(Prog::Wc), o)).contains("entropy"));
+        assert!(
+            !shown(|o| write_preview(&endowment(Prog::Date), &Holdings::default(), o))
+                .contains("entropy")
+        );
+        assert!(
+            !shown(|o| write_preview(&endowment(Prog::Wc), &Holdings::default(), o))
+                .contains("entropy")
+        );
     }
 
     /// **A program that answers in a register gets a sentence here, or the answer is lost**
@@ -2418,7 +2445,7 @@ mod tests {
     /// positions would put the output at slot 0, where a `std` child holds its heap.
     #[test]
     fn a_std_program_previews_its_fixed_slots() {
-        let s = shown(|o| write_preview(&endowment(Prog::StdExerciser), o));
+        let s = shown(|o| write_preview(&endowment(Prog::StdExerciser), &Holdings::default(), o));
         assert!(
             s.contains("cap 0  untyped   heap. the 384-page region"),
             "{s}"
@@ -2432,7 +2459,7 @@ mod tests {
         assert!(s.contains("cap 7  frame     config"), "{s}");
         assert!(!s.contains("cap 0  endpoint"), "{s}");
         // And a native program's rows did not move.
-        let u = shown(|o| write_preview(&endowment(Prog::Uuid), o));
+        let u = shown(|o| write_preview(&endowment(Prog::Uuid), &Holdings::default(), o));
         assert!(
             u.contains("cap 0  endpoint  result   report its answer back"),
             "{u}"
@@ -2464,7 +2491,7 @@ mod tests {
     fn the_preview_shows_the_network_only_where_it_is_declared() {
         // What `caps` prints is what the progenitor's spawn service reads (`Manifest::network`),
         // so the row appearing for the witness would be the preview admitting an over-grant.
-        let shown_for = |p: Prog| shown(|o| write_preview(&endowment(p), o));
+        let shown_for = |p: Prog| shown(|o| write_preview(&endowment(p), &Holdings::default(), o));
         assert!(shown_for(Prog::NetworkEchoClient).contains("cap 10 endpoint  network  WRITE"));
         for &p in Prog::ALL {
             if p != Prog::NetworkEchoClient {
@@ -2485,7 +2512,7 @@ mod tests {
             let mut e = endowment(Prog::Date);
             e.sink = sink;
             assert!(
-                shown(|o| write_preview(&e, o)).contains("    output   "),
+                shown(|o| write_preview(&e, &Holdings::default(), o)).contains("    output   "),
                 "{sink:?} left the destination unnamed"
             );
         }
@@ -2611,6 +2638,46 @@ mod tests {
             );
         });
         assert!(!one_grant.contains("namespace:"), "{one_grant}");
+    }
+
+    /// **Every place a position is printed leads with its tree's label in a two-grant shell**
+    /// (milestone 154): `pwd`, a directory grant's preview, and a bound name's row. Each is a path
+    /// the shell takes back, which an unlabeled `/x` would not be, since a two-grant shell has no
+    /// unlabeled root to resolve it from.
+    #[test]
+    fn a_two_grant_shell_prints_every_position_with_its_label() {
+        let mut sd = SecondDir::new(b"a", b"b").unwrap();
+        sd.which = nav::Which::B;
+        let mut cwd = Cwd::root();
+        cwd.descend(b"logs");
+        let mut holdings = Holdings {
+            dir: true,
+            second: Some(sd),
+            cwd,
+            binds: nav::Bindings::none(),
+        };
+        assert_eq!(shown(|o| write_pwd(&holdings, o)), "  /b/logs\n");
+
+        let s = shown(|o| {
+            write_caps(
+                b"rm /a/old/x",
+                128,
+                holdings,
+                None,
+                &mut |_| Ok(NameSet::empty()),
+                o,
+            );
+        });
+        assert!(
+            s.contains("dir      /a/old  (the directory holding x)"),
+            "{s}"
+        );
+
+        holdings
+            .bind(b"here", nav::Which::B, cwd)
+            .expect("a free name");
+        let s = shown(|o| write_holdings(128, holdings, None, o));
+        assert!(s.contains("bind here -> /b/logs"), "{s}");
     }
 
     /// The row marked with `*` follows `which` when it moves, not always the first label: this is
@@ -2966,13 +3033,14 @@ mod tests {
         let mut e = endowment(Prog::Date);
         e.sink = line::Sink::File(
             grant_plan::FileGrant {
+                which: grant_plan::nav::Which::A,
                 dir: Cwd::root(),
                 name: grant_plan::expand::Name::new(b"when.txt").expect("a nameable file"),
                 writable: true,
             },
             line::Mode::Truncate,
         );
-        let s = shown(|o| write_preview(&e, o));
+        let s = shown(|o| write_preview(&e, &Holdings::default(), o));
         assert!(s.contains("    output   when.txt"), "{s}");
         assert!(
             // And the row says the destination is **not** this shell, which is what the terminal's
@@ -2984,7 +3052,7 @@ mod tests {
 
         // And a program that declares none has no row at all: there is no second stream to hide,
         // so inventing a line about one would be the preview claiming more than the manifest does.
-        let s = shown(|o| write_preview(&endowment(Prog::Wc), o));
+        let s = shown(|o| write_preview(&endowment(Prog::Wc), &Holdings::default(), o));
         assert!(!s.contains("diags"), "{s}");
     }
 

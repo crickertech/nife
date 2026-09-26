@@ -1723,7 +1723,14 @@ pub struct Endowment {
 /// what the grant means, because there is nothing here that points at the shell any more.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct FileGrant {
-    /// The directory the name was resolved in, relative to the shell's root, fixed at plan time.
+    /// **Which of the shell's trees `dir` is in**, since milestone 154 (a process that holds two
+    /// directory capabilities): always [`nav::Which::A`] for a
+    /// shell holding one directory, and whichever tree the operand named for a shell holding two.
+    /// A required field rather than a default, so nothing that builds a grant can forget that a
+    /// position means nothing without the tree it is a position in.
+    pub which: nav::Which,
+    /// The directory the name was resolved in, relative to the root of [`FileGrant::which`]'s
+    /// tree, fixed at plan time.
     pub dir: nav::Cwd,
     /// The final component. Always a single component: a path was resolved into `dir`, not passed
     /// on, because the FS contract takes one component per request and no server here walks a path.
@@ -1763,7 +1770,10 @@ pub struct FileGrant {
 /// recursion can only reach what this designates.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct DirGrant {
-    /// The directory the capability designates, relative to the shell's root, fixed at plan time.
+    /// **Which of the shell's trees `dir` is in**, [`FileGrant::which`]'s reason (milestone 154).
+    pub which: nav::Which,
+    /// The directory the capability designates, relative to the root of [`DirGrant::which`]'s
+    /// tree, fixed at plan time.
     pub dir: nav::Cwd,
     /// The names in it the program is to act on: exactly one for a literal operand, the matched set
     /// for a pattern. Each is a single component, for [`FileGrant`]'s reason: a path was resolved
@@ -1820,6 +1830,10 @@ pub struct Holdings {
     pub binds: nav::Bindings,
 }
 
+/// The most bytes [`Holdings::render`] writes: a label and its slash ahead of the longest
+/// position [`nav::Cwd::render`] writes.
+pub const PLACE_MAX: usize = 1 + nav::MAX_NAME + nav::RENDER_MAX;
+
 /// **A two-grant shell's second label and which tree [`Holdings::cwd`] is standing in**
 /// (DECISIONS §126's `(which, pos)`, `pos` being [`Holdings::cwd`]). Provisional name and shape
 /// (milestone 154).
@@ -1864,11 +1878,6 @@ impl SecondDir {
     pub fn label_b(&self) -> &[u8] {
         &self.label_b[..self.label_b_len as usize]
     }
-
-    /// The two labels, composed the way [`nav::TwoRoots::resolve_from`] needs them.
-    fn roots(&self) -> nav::TwoRoots<'_> {
-        nav::TwoRoots::new(self.label_a(), self.label_b())
-    }
 }
 
 fn pack_label(label: &[u8]) -> Option<([u8; nav::MAX_NAME], u8)> {
@@ -1899,24 +1908,125 @@ impl Holdings {
     /// shell with nothing bound resolves byte for byte as it did before this milestone.
     pub fn resolve(&self, token: &[u8]) -> Result<(nav::Which, nav::Cwd), nav::Refused> {
         let p = nav::path(token)?;
-        if !p.is_from_root() {
-            return match &self.second {
-                None => Ok((nav::Which::A, self.cwd.resolve(&p)?)),
-                Some(sd) => sd.roots().resolve_from(sd.which, self.cwd, token),
+        self.resolve_path(&p)
+    }
+
+    /// [`Holdings::resolve`] for a token already parsed.
+    pub fn resolve_path(&self, p: &nav::Path<'_>) -> Result<(nav::Which, nav::Cwd), nav::Refused> {
+        self.resolve_steps(p.is_from_root(), p.steps())
+    }
+
+    /// [`Holdings::resolve`] for a bare step sequence and where it starts from, which is what a
+    /// path's *lead* is (every step but the last): `designate` resolves the directory a name is in,
+    /// and the shell's walk resolves a verb's target the same way. [`Holdings::anchor`] and then
+    /// [`nav::Cwd::apply`], so the depth bound and the root clamp are the one-grant ones.
+    pub fn resolve_steps(
+        &self,
+        from_root: bool,
+        steps: &[nav::Step<'_>],
+    ) -> Result<(nav::Which, nav::Cwd), nav::Refused> {
+        let mut pos = nav::Cwd::root();
+        let (which, rest) = self.anchor(from_root, steps, &mut pos)?;
+        pos.apply(rest)?;
+        Ok((which, pos))
+    }
+
+    /// **Where a step sequence starts**: which tree, the position in it the remaining steps apply
+    /// from (written into `pos`), and those remaining steps (milestone 154).
+    ///
+    /// This is the one decision [`Holdings::resolve`], `designate` and the shell's own walk all
+    /// need, split from the applying so the shell can open handles for exactly the steps that are
+    /// left rather than re-deriving where a label or a bound name put it. In order:
+    ///
+    /// - a relative sequence starts where this shell stands, in whichever tree it stands in;
+    /// - an absolute one whose first component is a grant label (a two-grant shell only) starts
+    ///   at that tree's own root, with the label consumed;
+    /// - one whose first component is a bound name starts at the bound position, name consumed;
+    /// - anything else absolute is a literal walk from the sole root in a one-grant shell, and
+    ///   [`nav::Refused::NotAName`] in a two-grant one, which has no unlabeled root to walk from.
+    ///
+    /// **The position is an out-parameter rather than part of the result**, and that is a measured
+    /// choice rather than a style: every caller is on a shell's walking or planning path, the shell
+    /// runs a debug build on a few pages of stack, and returning a `Cwd` by value from each arm put
+    /// nearly 2 KiB in this frame, which overflowed the globbing witness (`glob_grant_tests`).
+    pub fn anchor<'s, 'p>(
+        &self,
+        from_root: bool,
+        steps: &'s [nav::Step<'p>],
+        pos: &mut nav::Cwd,
+    ) -> Result<(nav::Which, &'s [nav::Step<'p>]), nav::Refused> {
+        if !from_root {
+            *pos = self.cwd;
+            let which = match &self.second {
+                Some(sd) => sd.which,
+                None => nav::Which::A,
             };
+            return Ok((which, steps));
         }
-        if let Some(sd) = &self.second
-            && let Some(r) = sd.roots().try_resolve_absolute(&p)
-        {
-            return r;
+        *pos = nav::Cwd::root();
+        let Some((nav::Step::Down(first), rest)) = steps.split_first() else {
+            return self.unlabeled(steps);
+        };
+        if let Some(sd) = &self.second {
+            if *first == sd.label_a() {
+                return Ok((nav::Which::A, rest));
+            }
+            if *first == sd.label_b() {
+                return Ok((nav::Which::B, rest));
+            }
         }
-        if let Some(r) = self.binds.resolve_absolute(&p) {
-            return r;
+        if let Some(entry) = self.binds.lookup(first) {
+            *pos = entry.pos();
+            return Ok((entry.which(), rest));
         }
-        match &self.second {
+        self.unlabeled(steps)
+    }
+
+    /// An absolute sequence no label and no bound name claimed: the sole root's in a one-grant
+    /// shell, nothing in a two-grant one.
+    fn unlabeled<'s, 'p>(
+        &self,
+        steps: &'s [nav::Step<'p>],
+    ) -> Result<(nav::Which, &'s [nav::Step<'p>]), nav::Refused> {
+        match self.second {
             Some(_) => Err(nav::Refused::NotAName),
-            None => Ok((nav::Which::A, self.cwd.resolve(&p)?)),
+            None => Ok((nav::Which::A, steps)),
         }
+    }
+
+    /// **Write a position as a path this shell can be handed back** (milestone 154): what `pwd`
+    /// prints, and what `caps` prints for a grant or a bound name. A one-grant shell writes
+    /// [`nav::Cwd::render`] unchanged. A two-grant shell has no unlabeled root, so the tree's label
+    /// leads: `/b` for `b`'s root, `/b/x` below it, each of which [`Holdings::resolve`] takes
+    /// back to the same `(which, pos)`.
+    ///
+    /// Returns the bytes written; `out` should be [`PLACE_MAX`] long, and a shorter one truncates
+    /// rather than panicking, [`nav::Cwd::render`]'s rule.
+    pub fn render(&self, which: nav::Which, pos: nav::Cwd, out: &mut [u8]) -> usize {
+        let Some(sd) = &self.second else {
+            return pos.render(out);
+        };
+        let label = match which {
+            nav::Which::A => sd.label_a(),
+            nav::Which::B => sd.label_b(),
+        };
+        let mut n = 0;
+        for &b in b"/".iter().chain(label) {
+            if n < out.len() {
+                out[n] = b;
+                n += 1;
+            }
+        }
+        if !pos.is_root() {
+            n += pos.render(&mut out[n..]);
+        }
+        n
+    }
+
+    /// [`Holdings::render`] of where this shell stands.
+    pub fn render_cwd(&self, out: &mut [u8]) -> usize {
+        let which = self.second.map_or(nav::Which::A, |sd| sd.which);
+        self.render(which, self.cwd, out)
     }
 
     /// **`bind`'s mutator**: name a position this shell already reached some other way
@@ -2661,11 +2771,12 @@ pub fn plan_against_with(
             if !holds.dir {
                 return Err(Refusal::NoSuchCapability(CapKind::File));
             }
-            let (dir, names) = designate(token, at, holds.cwd, expanded)?;
+            let (which, dir, names) = designate(token, at, &holds, expanded)?;
             // One file, so a pattern that matched more than one has designated something this
             // program cannot be handed. The count is the designation; nothing was denied.
             let name = names.only().ok_or(Refusal::AmbiguousFile)?;
             Some(FileGrant {
+                which,
                 dir,
                 name: Name::new(name).ok_or(Refusal::FileNotNameable)?,
                 writable,
@@ -2687,7 +2798,7 @@ pub fn plan_against_with(
             if !holds.dir {
                 return Err(Refusal::NoSuchCapability(CapKind::File));
             }
-            let (dir, names) = designate(token, at, holds.cwd, expanded)?;
+            let (which, dir, names) = designate(token, at, &holds, expanded)?;
             // Typing the recursion option is what widens the capability from "take names out of
             // this directory" to "walk what is under it". A program run without it holds no way to
             // descend, so its recursion is not disabled by a branch anybody has to get right.
@@ -2701,6 +2812,7 @@ pub fn plan_against_with(
                 None => false,
             };
             Some(DirGrant {
+                which,
                 dir,
                 names,
                 subtree,
@@ -2753,9 +2865,10 @@ pub fn plan_against_with(
         if !holds.dir {
             return Err(Refusal::NoSuchCapability(CapKind::File));
         }
-        let (dir, names) = designate(token, at, holds.cwd, expanded)?;
+        let (which, dir, names) = designate(token, at, &holds, expanded)?;
         let name = names.only().ok_or(Refusal::AmbiguousFile)?;
         streams.source = Source::File(FileGrant {
+            which,
             dir,
             name: Name::new(name).ok_or(Refusal::FileNotNameable)?,
             // A reader reads. The direction is the manifest's here as everywhere else, and
@@ -2825,9 +2938,10 @@ pub fn redirect_target(
     if !holds.dir {
         return Err(Refusal::NoSuchCapability(CapKind::File));
     }
-    let (dir, names) = designate(token, 0, holds.cwd, Expansion::none())?;
+    let (which, dir, names) = designate(token, 0, &holds, Expansion::none())?;
     let name = names.only().ok_or(Refusal::FileNotNameable)?;
     Ok(FileGrant {
+        which,
         dir,
         name: Name::new(name).ok_or(Refusal::FileNotNameable)?,
         writable,
@@ -2952,9 +3066,9 @@ pub fn check_chain(shell_feeds_head: bool, plans: &[Option<Endowment>]) -> Resul
 fn designate(
     token: &[u8],
     at: usize,
-    cwd: nav::Cwd,
+    holds: &Holdings,
     expanded: Expansion,
-) -> Result<(nav::Cwd, NameSet), Refusal> {
+) -> Result<(nav::Which, nav::Cwd, NameSet), Refusal> {
     // Refuses a pattern anywhere but the last component before anything else looks at the token,
     // because `a*/b` is not a smaller question than `a*`, it is a different one (notes/glob.md).
     let magic = expand::magic_component(token)?;
@@ -2962,16 +3076,23 @@ fn designate(
     let (lead, last) = parsed
         .split_last_component()
         .ok_or(Refusal::FileNotNameable)?;
-    // **An absolute token is resolved from the holder's own root**, not from where it is standing,
-    // which is the one thing the steps cannot say for themselves. Everything downstream already
-    // re-walks a recorded position from the root (`swish::open_at`), so rooting it here is the
-    // whole of what the syntax needed.
-    let mut dir = if parsed.is_from_root() {
-        nav::Cwd::root()
-    } else {
-        cwd
-    };
-    dir.apply(lead).map_err(nav_refusal)?;
+    // **The lead resolves exactly as `cd` would resolve it** ([`Holdings::anchor`]): a
+    // relative one from where the shell stands, an absolute one from a grant label, a bound name,
+    // or the sole root, in that order. Everything downstream re-walks a recorded `(which, dir)`
+    // from that tree's own root (`swish::open_at`), so the position is all a grant carries.
+    //
+    // Before milestone 154 this rooted every absolute token at the sole root literally, so
+    // `wc /recent/x` with `recent` bound walked a directory named `recent` while `ls /recent`
+    // walked the bind. One resolver for both is what closed that.
+    //
+    // The anchor and the apply are spelled out here rather than through `resolve_steps` because
+    // this runs on the shell's planning path, on a debug build's few pages of stack, and one frame
+    // fewer is the margin `glob_grant_tests` records.
+    let mut dir = nav::Cwd::root();
+    let (which, rest) = holds
+        .anchor(parsed.is_from_root(), lead, &mut dir)
+        .map_err(nav_refusal)?;
+    dir.apply(rest).map_err(nav_refusal)?;
 
     let names = if magic {
         // The pattern's whole meaning is the set, so a planner with no set has nothing to grant and
@@ -2989,7 +3110,7 @@ fn designate(
         // in notes/glob-grant.md. Only a set the shell expanded carries types it observed.
         NameSet::one(last, false).ok_or(Refusal::FileNotNameable)?
     };
-    Ok((dir, names))
+    Ok((which, dir, names))
 }
 
 /// A navigation refusal, in the vocabulary the prompt prints for a *grant*.
@@ -3914,6 +4035,169 @@ mod tests {
         );
     }
 
+    /// A two-grant shell standing in `a`, for the per-command grant tests below.
+    fn two_grants() -> Holdings {
+        Holdings {
+            second: Some(SecondDir::new(b"a", b"b").unwrap()),
+            ..WITH_DIR
+        }
+    }
+
+    /// The source a line planned for `wc`, which reads a stream and designates it by name: the
+    /// simplest per-command grant that carries a position.
+    fn wc_source(line: &[u8], holds: Holdings) -> Result<FileGrant, Refusal> {
+        let Command::Run(r) = parse(line) else {
+            panic!("not a run: {line:?}")
+        };
+        match plan_against(&r, Prog::Wc, Prog::Wc.manifest(), holds)?.source {
+            Source::File(g) => Ok(g),
+            other => panic!("wc's operand planned as {other:?}"),
+        }
+    }
+
+    fn at(components: &[&[u8]]) -> nav::Cwd {
+        let mut c = nav::Cwd::root();
+        for name in components {
+            assert!(c.descend(name));
+        }
+        c
+    }
+
+    /// **A per-command grant says which tree it is in** (milestone 154's second outstanding
+    /// item): before this, `FileGrant` carried a bare position, so a two-grant shell naming a file
+    /// in `b` would have planned a grant against `a`'s tree at the same path.
+    #[test]
+    fn a_two_grant_shell_designates_a_file_in_either_tree() {
+        let g = wc_source(b"wc /b/secret", two_grants()).unwrap();
+        assert_eq!(
+            (g.which, g.dir, g.name.as_bytes()),
+            (nav::Which::B, nav::Cwd::root(), &b"secret"[..])
+        );
+
+        let g = wc_source(b"wc /a/logs/x", two_grants()).unwrap();
+        assert_eq!((g.which, g.dir), (nav::Which::A, at(&[b"logs"])));
+
+        // A relative name stays in whichever tree the shell stands in, at its position there.
+        let mut holds = two_grants();
+        holds.second.as_mut().unwrap().which = nav::Which::B;
+        holds.cwd = at(&[b"deep"]);
+        let g = wc_source(b"wc x", holds).unwrap();
+        assert_eq!((g.which, g.dir), (nav::Which::B, at(&[b"deep"])));
+        let g = wc_source(b"wc ../x", holds).unwrap();
+        assert_eq!((g.which, g.dir), (nav::Which::B, nav::Cwd::root()));
+
+        // The redirection planner is the same resolver: `> /b/out` writes into `b`.
+        let g = redirect_target(b"/b/out", two_grants(), true).unwrap();
+        assert_eq!((g.which, g.dir), (nav::Which::B, nav::Cwd::root()));
+    }
+
+    /// **The refusals a union of two grants has to state**, now for a grant rather than a `cd`:
+    /// climbing out of one tree cannot land in the other, an unlabeled absolute path names
+    /// nothing, and a one-grant shell's absolute path is untouched by any of it.
+    #[test]
+    fn a_two_grant_designation_cannot_cross_trees_or_skip_the_label() {
+        assert_eq!(
+            wc_source(b"wc /a/../b/secret", two_grants()),
+            Err(Refusal::FileNotNameable),
+        );
+        assert_eq!(
+            wc_source(b"wc ../x", two_grants()),
+            Err(Refusal::FileNotNameable),
+        );
+        // No unlabeled root in a two-grant shell: `/secret` is not in either tree.
+        assert_eq!(
+            wc_source(b"wc /secret", two_grants()),
+            Err(Refusal::FileNotNameable),
+        );
+        // One grant: `/a/x` is a directory called `a`, exactly as before.
+        let g = wc_source(b"wc /a/x", WITH_DIR).unwrap();
+        assert_eq!((g.which, g.dir), (nav::Which::A, at(&[b"a"])));
+    }
+
+    /// **A bound name designates through the bind**, which it did not before milestone 154
+    /// unified the resolvers: `designate` rooted every absolute token literally, so `wc
+    /// /recent/x` asked for a directory named `recent` while `ls /recent` walked the bind.
+    #[test]
+    fn a_bound_name_designates_what_it_is_bound_to() {
+        let mut holds = WITH_DIR;
+        holds
+            .bind(b"recent", nav::Which::A, at(&[b"logs", b"2026"]))
+            .unwrap();
+        let g = wc_source(b"wc /recent/x", holds).unwrap();
+        assert_eq!((g.which, g.dir), (nav::Which::A, at(&[b"logs", b"2026"])));
+        // And `..` past it climbs the real tree, as `cd` does.
+        let g = wc_source(b"wc /recent/../y", holds).unwrap();
+        assert_eq!((g.which, g.dir), (nav::Which::A, at(&[b"logs"])));
+    }
+
+    /// **What `pwd` prints can be typed back**, in a two-grant shell as in a one-grant one: the
+    /// label leads, and resolving the rendering lands on the same `(which, pos)`.
+    #[test]
+    fn a_two_grant_position_renders_with_its_label_and_round_trips() {
+        let show = |h: &Holdings, w, p| {
+            let mut buf = [0u8; PLACE_MAX];
+            let n = h.render(w, p, &mut buf);
+            (buf, n)
+        };
+        let two = two_grants();
+        let eq = |h: &Holdings, w, p, want: &str| {
+            let (buf, n) = show(h, w, p);
+            assert_eq!(core::str::from_utf8(&buf[..n]), Ok(want));
+        };
+        eq(&two, nav::Which::A, nav::Cwd::root(), "/a");
+        eq(&two, nav::Which::B, at(&[b"x", b"y"]), "/b/x/y");
+        eq(&WITH_DIR, nav::Which::A, at(&[b"x"]), "/x");
+        eq(&WITH_DIR, nav::Which::A, nav::Cwd::root(), "/");
+        for (w, p) in [
+            (nav::Which::A, nav::Cwd::root()),
+            (nav::Which::B, at(&[b"x", b"y"])),
+        ] {
+            let (buf, n) = show(&two, w, p);
+            assert_eq!(two.resolve(&buf[..n]), Ok((w, p)));
+        }
+    }
+
+    /// [`Holdings::anchor`] hands back exactly the steps that are left, which is what the shell
+    /// opens handles for: a label or a bound name is consumed, nothing else is.
+    #[test]
+    fn anchor_consumes_a_label_or_a_bound_name_and_nothing_else() {
+        let mut base = nav::Cwd::root();
+        let p = nav::path(b"/b/x/y").unwrap();
+        let (which, rest) = two_grants().anchor(true, p.steps(), &mut base).unwrap();
+        assert_eq!(
+            (which, base, rest.len()),
+            (nav::Which::B, nav::Cwd::root(), 2)
+        );
+
+        let p = nav::path(b"/x/y").unwrap();
+        let (which, rest) = WITH_DIR.anchor(true, p.steps(), &mut base).unwrap();
+        assert_eq!(
+            (which, base, rest.len()),
+            (nav::Which::A, nav::Cwd::root(), 2)
+        );
+
+        let mut holds = WITH_DIR;
+        holds.bind(b"here", nav::Which::A, at(&[b"x"])).unwrap();
+        let p = nav::path(b"/here/y").unwrap();
+        let (which, rest) = holds.anchor(true, p.steps(), &mut base).unwrap();
+        assert_eq!((which, base, rest.len()), (nav::Which::A, at(&[b"x"]), 1));
+
+        let p = nav::path(b"x").unwrap();
+        let mut holds = two_grants();
+        holds.second.as_mut().unwrap().which = nav::Which::B;
+        holds.cwd = at(&[b"deep"]);
+        let (which, rest) = holds.anchor(false, p.steps(), &mut base).unwrap();
+        assert_eq!(
+            (which, base, rest.len()),
+            (nav::Which::B, at(&[b"deep"]), 1)
+        );
+
+        assert_eq!(
+            two_grants().anchor(true, &[], &mut base).map(|(w, _)| w),
+            Err(nav::Refused::NotAName),
+        );
+    }
+
     /// [`SecondDir::new`] refuses a label that is not a nameable component, the same bound
     /// [`nav::TwoRoots`] matches against, so a caller cannot build a `Holdings` whose absolute
     /// paths could never resolve to what it claims to hold.
@@ -4027,6 +4311,7 @@ mod tests {
         assert_eq!(
             e.source,
             Source::File(FileGrant {
+                which: nav::Which::A,
                 dir: nav::Cwd::root(),
                 name: Name::new(b"report.txt").unwrap(),
                 writable: false,
@@ -4709,6 +4994,7 @@ mod tests {
     fn writing_while_reading_is_a_declaration_the_plan_carries() {
         let streams = Streams {
             source: line::Source::File(FileGrant {
+                which: nav::Which::A,
                 dir: nav::Cwd::root(),
                 name: Name::new(b"page.md").unwrap(),
                 writable: false,
@@ -4729,6 +5015,7 @@ mod tests {
     fn a_chain_this_shell_feeds_needs_one_stage_that_reads_to_the_end() {
         let src = Streams {
             source: line::Source::File(FileGrant {
+                which: nav::Which::A,
                 dir: nav::Cwd::root(),
                 name: Name::new(b"page.md").unwrap(),
                 writable: false,
@@ -4766,6 +5053,7 @@ mod tests {
         let to_file = Streams {
             sink: line::Sink::File(
                 FileGrant {
+                    which: nav::Which::A,
                     dir: nav::Cwd::root(),
                     name: Name::new(b"out.txt").unwrap(),
                     writable: true,

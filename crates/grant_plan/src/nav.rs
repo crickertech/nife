@@ -458,14 +458,10 @@ impl<'a> TwoRoots<'a> {
 
     /// [`TwoRoots::resolve_absolute`], with the "no label matched" case told apart from a real
     /// refusal: `None` when the token's first component is not `Down` at all (a bare `/` or a
-    /// leading `..`) or names neither label, `Some` once a label committed. [`Holdings::resolve`]
-    /// (`crate::lib`) needs this split to fall through to [`Bindings`] only when no grant label
-    /// matched, never when a label matched and *applying the rest* is what failed: a bind lookup
-    /// must not paper over `/a/../../elsewhere`'s real [`Refused::AtYourRoot`].
-    pub(crate) fn try_resolve_absolute(
-        &self,
-        p: &Path<'_>,
-    ) -> Option<Result<(Which, Cwd), Refused>> {
+    /// leading `..`) or names neither label, `Some` once a label committed. `Holdings::anchor`
+    /// (`crate::lib`) makes the same split for a two-grant shell, and falls through to the bind
+    /// table only when no label matched, never when a label matched and applying the rest failed.
+    fn try_resolve_absolute(&self, p: &Path<'_>) -> Option<Result<(Which, Cwd), Refused>> {
         let (label, rest) = match p.steps().split_first() {
             Some((Step::Down(name), rest)) => (*name, rest),
             _ => return None,

@@ -3122,6 +3122,58 @@ pub mod fixture {
         pub const GRANTED_ACCESS_FAILED: u64 = 1 << 5;
     }
 
+    /// **What a shell holding two trees reports**, the live half of milestone 154 (a process that
+    /// holds two directory capabilities): the real `swish`
+    /// builtins, `cd`, `pwd`, `ls`, `bind` and a planned `<`, run over two live caretakers, grant
+    /// `a` over [`tree::SUB`] and grant `b` over [`tree::OTHER`].
+    ///
+    /// [`twodir`] proved one process can hold two trees and resolve against both. This proves the
+    /// shell's own resolver does, with §126 (a real, single, moving cwd) in force: the same
+    /// exact-set check, so the reaching bits are the controls for the refusal bits. Provisional
+    /// names, all of them.
+    pub mod twotrees {
+        /// `pwd` printed `/a` at the start: a two-grant shell starts at the first tree's root and
+        /// says so with its label, since it has no unlabeled root.
+        pub const PWD_STARTS_AT_A: u64 = 1 << 0;
+        /// `ls` in `a` named [`super::tree::INNER`] and not [`super::tree::SECRET`].
+        pub const LISTED_A: u64 = 1 << 1;
+        /// `cd /b` moved the shell into the second tree and `pwd` printed `/b`.
+        pub const MOVED_TO_B: u64 = 1 << 2;
+        /// `ls` in `b` named [`super::tree::SECRET`] and not [`super::tree::INNER`].
+        pub const LISTED_B: u64 = 1 << 3;
+        /// A relative name opened in `b` while standing there, over `b`'s own endpoint.
+        pub const OPENED_RELATIVE_IN_B: u64 = 1 << 4;
+        /// `/a/inner` opened from inside `b`: a label crosses trees without moving the shell.
+        pub const OPENED_A_FROM_B: u64 = 1 << 5;
+        /// `cd ..` at `b`'s root was refused and nothing moved (DECISIONS §126's boundary).
+        pub const CLAMPED_AT_B: u64 = 1 << 6;
+        /// `cd /a/../b` was refused and nothing moved: climbing out of one tree does not land in
+        /// the other.
+        pub const DOT_DOT_REFUSED: u64 = 1 << 7;
+        /// `cd /secret` was refused: a two-grant shell has no unlabeled root to resolve it from.
+        pub const UNLABELED_REFUSED: u64 = 1 << 8;
+        /// `<` planned against `/b/secret` opened in `b` and read [`super::tree::SECRET_BODY`]:
+        /// the per-command grant carried its tree through to the open.
+        pub const REDIRECTED_FROM_B: u64 = 1 << 9;
+        /// A bare `cd` came back to `/a`, the starting position, from inside `b`.
+        pub const HOME_IS_A: u64 = 1 << 10;
+        /// A name bound to `/b` listed `b`'s files, and binding a grant label was refused.
+        pub const BOUND_INTO_B: u64 = 1 << 11;
+        /// `rm /b/...` was planned and then refused at delivery rather than sent: the progenitor
+        /// would build its caretaker in the first tree.
+        pub const RM_IN_B_REFUSED: u64 = 1 << 12;
+
+        /// **A refused move moved the shell.** Never allowed.
+        pub const MOVED_ON_REFUSAL: u64 = 1 << 16;
+        /// **`/a/../b` or an unlabeled path was not refused.** Never allowed.
+        pub const CROSSED: u64 = 1 << 17;
+        /// **A name that exists only in `b` opened through `a`'s label, or the reverse.** Never
+        /// allowed: the label selects the endpoint, and the endpoint is the boundary.
+        pub const REACHED_ACROSS: u64 = 1 << 18;
+        /// Nothing reachable was reached, so nothing above was proven.
+        pub const TWO_TREES_FAILED: u64 = 1 << 19;
+    }
+
     /// **What a navigating shell reports** (milestone 47's commands: `cd`, `pwd`, `ls`, `mkdir`,
     /// `rm`).
     ///
