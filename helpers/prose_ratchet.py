@@ -8,6 +8,7 @@ checked it: a lane moved facts into notes already over the cap and each note gre
     python3 helpers/prose_ratchet.py --report PATH..  # one document's measures, and why
     python3 helpers/prose_ratchet.py --bank           # lower the baseline to the tree; never raises
     python3 helpers/prose_ratchet.py --init           # write the baseline from scratch (milestone 586 only)
+    python3 helpers/prose_ratchet.py --remeasure      # once, in the change that bumps MEASURE (see there)
 
 Name: provisional, minted by milestone 586's lane on 2026-09-24. A shared python module under
 `helpers/`, which `script/names` puts out of its own scope, so its provenance is this paragraph
@@ -90,6 +91,10 @@ import os
 import re
 import subprocess
 import sys
+
+sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import roadmap_block  # noqa: E402
 
 # --- scope -------------------------------------------------------------------------------------
 #
@@ -450,13 +455,46 @@ def granted_words(text):
     """The word count a `prose-budget` exception marker records, or None.
 
     Milestone 586's design note: the marker's number is the grant, and a file past it has grown
-    without a grant. It is the first number before `words` in the marker, compared with the whole
-    file's `wc -w`, marker included, because that is how every marker in the tree was measured.
+    without a grant. It is the first number before `words` in the marker, compared with the file's
+    `wc -w`, marker included, because that is how every marker in the tree was measured, and
+    frontmatter excluded (`counted_words`), because a record's fields are not its prose.
     """
     text = CODE_SPAN.sub('', re.sub(r'^\s*(```|~~~).*?^\s*\1', '', text, flags=re.S | re.M))
     m = re.search(r'<!--\s*prose-budget:\s*exception\.(.*?)-->', text, re.S)
     n = re.search(r'([\d,]+)\s+words\b', m.group(1)) if m else None
     return int(n.group(1).replace(',', '')) if n else None
+
+
+# --- a roadmap block's field tokens are syntax (milestone 596) ---------------------------------
+#
+# `**Status: BUILT.**`, `**Gate: NONE.**`, a `**Built:**` line and the tag opening a Follow-on or
+# Revisit bullet are fields `script/roadmap` parses, written in a sentence's clothes. Counted as
+# sentences they held down the median of every block that carried one (a two-word "sentence" per
+# block), so milestone 596 (the roadmap blocks get frontmatter too), which moves them into
+# frontmatter, read as 118 blocks getting worse. The tokens come from `helpers/roadmap_block.py`, the
+# module the parser reads them with, so nothing here lists them. Kept a separate function from the
+# bold counting on purpose: #1311 changes that, and the two should not share a hunk.
+#
+# MEASURE numbers the measurement. The baseline records the one it was written with, and a baseline
+# written with a newer one may re-measure rows upward once, in the same change as the code that
+# moved (see `check`). That is a re-measurement of the same prose, not a relaxed limit.
+MEASURE = 2
+
+
+def measured(path, text):
+    """`measure`, with a roadmap document's field tokens read as syntax rather than sentences."""
+    if path.startswith('design/roadmap/'):
+        text = roadmap_block.without_field_tokens(text)
+    return measure(text)
+
+
+def counted_words(text):
+    """The word count a prose-budget grant is held to: the file's `wc -w`, frontmatter excluded.
+
+    Frontmatter is a record's fields, which `prose_lines` already leaves out of the main-body count;
+    counting it here meant a block that moved its status into frontmatter grew against its grant.
+    """
+    return len(FRONTMATTER.sub('', text).split())
 
 
 def median(xs):
@@ -515,6 +553,8 @@ HEADER = """\
 # with `python3 helpers/prose_ratchet.py --bank`, which never raises and never adds. A row may be
 # removed; a row may not be added and a number may not rise (script/lint compares against the
 # merge base). A document that must exceed its row gets a marked exception, not an edit here.
+# The one exception is a change of measurement: the `measure:` line below says which one wrote
+# these rows, and a change that bumps it re-measures the rows it moved (`--remeasure`), once.
 # Limits: words 3000, median sentence 20, longest sentence 40, bold 4 per 1,000 words (held as the
 # two counts). Median and bold are not asked of documents under 200 words.
 """
@@ -538,8 +578,14 @@ def read_baseline(text):
     return rows
 
 
+def baseline_measure(text):
+    """The MEASURE a baseline was written with; 1 for a baseline older than the line."""
+    m = re.search(r'^# measure: (\d+)$', text or '', re.M)
+    return int(m.group(1)) if m else 1
+
+
 def write_baseline(rows):
-    out = [HEADER, 'path\t' + '\t'.join(COLUMNS) + '\n']
+    out = [HEADER, f'# measure: {MEASURE}\n', 'path\t' + '\t'.join(COLUMNS) + '\n']
     for path in sorted(rows):
         out.append(path + '\t' + '\t'.join(fmt(rows[path].get(c)) for c in COLUMNS) + '\n')
     with open(BASELINE, 'w') as f:
@@ -640,6 +686,10 @@ def check():
     # The baseline may only go down. Rows are compared with the merge base's copy of the file.
     if base:
         old_text = at(base, BASELINE)
+        # A change that moves MEASURE re-measures the roadmap's rows once, with the code that
+        # moved it: those rows may rise or appear in that change and in no other.
+        remeasured = (old_text is not None and baseline_measure(old_text) < MEASURE
+                      and baseline_measure(open(BASELINE).read()) == MEASURE)
         if old_text is not None:
             old = read_baseline(old_text)
             renames = {}
@@ -648,6 +698,8 @@ def check():
                 if cells[0].startswith('R') and len(cells) == 3:
                     renames[cells[2]] = cells[1]
             for path, row in baseline.items():
+                if remeasured and path.startswith('design/roadmap/'):
+                    continue
                 prior = old.get(path) or old.get(renames.get(path, ''))
                 if prior is None:
                     bad.append(f'{BASELINE}: {path} was added. The baseline only shrinks; a new '
@@ -683,10 +735,11 @@ def check():
                 bad.append(f'{path}: its {family} exception {problem}. An exception has to say '
                            f'when it was granted and why, or it reads as a design')
         grant = granted_words(text)
-        if grant is not None and len(text.split()) > grant:
-            bad.append(f'{path}: {len(text.split()):,} words (wc -w) against the {grant:,} its '
-                       f'prose-budget exception grants. Cut it back; raising the grant is calef\'s')
-        m = measure(text)
+        if grant is not None and counted_words(text) > grant:
+            bad.append(f'{path}: {counted_words(text):,} words (wc -w, frontmatter excluded) '
+                       f'against the {grant:,} its prose-budget exception grants. Cut it back; '
+                       f'raising the grant is calef\'s')
+        m = measured(path, text)
         now_over = over(m)
         if not now_over:
             continue
@@ -696,7 +749,7 @@ def check():
         was = None
         if path in changed:
             old_text = at(base, path)
-            was = measure(old_text) if old_text is not None else None
+            was = measured(path, old_text) if old_text is not None else None
         doc_held = False
         if path in touched and 'bold_lead' in now_over and FAMILY['bold_lead'] not in exc:
             spans = m['bold_lead'] + m['bold_inline']
@@ -736,6 +789,38 @@ def check():
     return docs, held, excused, bad
 
 
+def remeasure():
+    """Raise or add the baseline rows a new MEASURE moved, and touch no other row.
+
+    Only documents whose measure the change actually moved are visited (`measured` differs from
+    `measure`), and only a measure now over its row is written, at what it now measures. Every other
+    row is copied as it stands, so this cannot lower or loosen anything the measurement did not
+    reach. Run once, in the change that bumps MEASURE; `check` refuses the raise anywhere else.
+    """
+    docs = documents(tracked())
+    rows = read_baseline(open(BASELINE).read()) if os.path.exists(BASELINE) else {}
+    moved = []
+    for path in docs:
+        text = open(path).read()
+        new, old = measured(path, text), measure(text)
+        if new == old:
+            continue
+        exc = exceptions(text)
+        row = dict(rows.get(path, {}))
+        changed = False
+        for c, v in over(new).items():
+            if FAMILY[c] in exc:
+                continue
+            if row.get(c) is None or v > row[c]:
+                row[c] = v
+                changed = True
+        if changed:
+            rows[path] = row
+            moved.append(path)
+    write_baseline(rows)
+    return moved
+
+
 def bank(init=False):
     docs = documents(tracked())
     old = {} if init or not os.path.exists(BASELINE) else read_baseline(open(BASELINE).read())
@@ -743,7 +828,7 @@ def bank(init=False):
     for path in docs:
         text = open(path).read()
         exc = exceptions(text)
-        o = {c: v for c, v in over(measure(text)).items() if FAMILY[c] not in exc}
+        o = {c: v for c, v in over(measured(path, text)).items() if FAMILY[c] not in exc}
         if not o:
             continue
         if init:
@@ -858,9 +943,13 @@ def main(argv):
         return 0
     if argv[0] == '--report':
         for path in argv[1:]:
-            m = measure(open(path).read())
+            m = measured(path, open(path).read())
             print(path, ' '.join(f'{k}={fmt(v)}' for k, v in m.items()),
                   'over:', ','.join(over(m)) or 'none')
+        return 0
+    if argv[0] == '--remeasure':
+        moved = remeasure()
+        print(f'prose ratchet: re-measured {len(moved)} rows under measure {MEASURE}')
         return 0
     if argv[0] in ('--bank', '--init'):
         rows = bank(init=argv[0] == '--init')

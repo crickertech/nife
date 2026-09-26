@@ -371,7 +371,8 @@ INDEX_HEADING = "## Index row"
 # glosses ("what you write is checked, not that you must write it") and §71 about its own promotion
 # triggers. See BUGS in this script's header.
 REVISIT_HEADING = "## Revisit"
-REVISIT = re.compile(r"^- \*\*(Condition|Nothing|Unstated)\.\*\*(.*)$")
+# The pattern lives in helpers/roadmap_block.py, beside every other field token this script reads.
+REVISIT = roadmap_block.REVISIT
 # `**Built:** <ISO>`, the Built column, kept as a field rather than read out of the status
 # sentence: 129 of 288 blocks stated the date in prose or not at all, in eight spellings.
 BUILT_LINE = re.compile(r"\*\*Built:\*\* (\d{4}-\d{2}-\d{2})")
@@ -1194,9 +1195,7 @@ PATHISH = re.compile(r"(?:" + "|".join(re.escape(d) for d in sorted(_ROOT_DIRS))
 # this does not change that. What changes is that somebody wrote "still true, and here is what I
 # checked" beside each item, which is the act that found milestone 16's two finished items. Name
 # provisional (calef names things); the vocabulary it joins is provisional in the same way.
-DISPOSITION = re.compile(
-    r"^- \*\*(None|Recorded|Refused|Decision|Proposed|Done|Outstanding|Milestone (\d+))"
-    r"\.\*\*(.*)$")
+DISPOSITION = roadmap_block.DISPOSITION  # spelled in helpers/roadmap_block.py
 
 swept = 0
 partial_swept = 0

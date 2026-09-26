@@ -149,3 +149,87 @@ def body(text):
     lines = text.split("\n")
     fields, start, _ = frontmatter(lines)
     return lines[start:] if fields is not None else lines
+
+
+# ---- the prose form's field tokens, which are syntax and not sentences --------------------------
+# Every bold marker `script/roadmap` reads out of a block's prose, spelled once here and imported by
+# it. `helpers/prose_ratchet.py` reads the same list to measure a block's prose without them: a
+# `**Status: BUILT.**` is a field written in a sentence's clothes, and counted as a two-word sentence
+# it held down the median of every block that carried one, so removing it in milestone 596's switch
+# read as 118 blocks getting worse. The patterns are literals on purpose, so a scanner that derives
+# markers from the parsers' source (as #1311's does for bold) sees them.
+STATUS_TOKEN = re.compile(r"^\*\*Status: (BUILT|REMOVED|SUPERSEDED|PARTIAL|IN-PROGRESS|"
+                          r"NOT-STARTED|OPTIONAL|RECORDED|REFUSED|PROPOSED)\b([^*]*)\*\*[ \t]*", re.M)
+BUILT_TOKEN = re.compile(r"^\*\*Built:\*\* \d{4}-\d{2}-\d{2}[ \t]*$", re.M)
+GATE_TOKEN = re.compile(r"^\*\*Gate: [A-Z0-9§, ]+\.\*\*[ \t]*", re.M)
+# The `## Follow-on` and `## Revisit` bullet tags, with the capture groups `script/roadmap` reads.
+DISPOSITION = re.compile(
+    r"^- \*\*(None|Recorded|Refused|Decision|Proposed|Done|Outstanding|Milestone (\d+))"
+    r"\.\*\*(.*)$")
+REVISIT = re.compile(r"^- \*\*(Condition|Nothing|Unstated)\.\*\*(.*)$")
+
+
+# What the status word becomes when it leaves a sentence it was part of. "**Status: SUPERSEDED.**
+# 2026-09-15, by milestone 166 (one boot loader)" still needs a subject, and "**Status: PARTIAL
+# 2026-09-04.**" says when, which the frontmatter does not.
+PHRASE = {"BUILT": "Built", "PARTIAL": "Partial as of", "REMOVED": "Removed", "REFUSED": "Refused",
+          "SUPERSEDED": "Superseded", "RECORDED": "Recorded", "OPTIONAL": "Optional",
+          "NOT-STARTED": "Not started", "IN-PROGRESS": "In progress"}
+
+
+def status_lead(token, inside, following, built):
+    """What replaces a status token: nothing, or the words it carried that the frontmatter does not.
+
+    `inside` is what the bold held after the token, `following` the first character of the prose
+    after it in the same paragraph ('' at the paragraph's end), `built` the block's Built date. A
+    date inside the bold that equals `built` is the field and goes; anything else stays as prose.
+    """
+    if token == PROPOSED:
+        return ""  # its one date becomes `raised`
+    inside = inside.strip()
+    bare = inside.strip(" .")
+    lead = PHRASE[token] + ("" if not bare else
+                            inside.rstrip(".") if inside[0] in ",;" else " " + inside.rstrip("."))
+    continues = following and (following in "(,;:" or
+                               ((not inside.endswith(".") or not bare)
+                                and (following.isdigit() or following.islower())))
+    if continues:
+        return lead + ("" if following in ",;:" else " ")
+    if not bare or bare == built:
+        return ""
+    return lead + (". " if following else ".")
+
+
+def without_fields(text):
+    """`text` with its status token, `**Built:**` lines and gate tokens taken out of the prose,
+    and the words the status token carried kept (`status_lead`). This is the migration's rewrite
+    of the body and the prose ratchet's reading of a prose-form block, which is what makes the two
+    measure the same."""
+    bm = PROSE_BUILT.search(text)
+    built = bm.group(1) if bm else ""
+    # Only the status line a block opens with: the first non-blank line after the H1. A phase
+    # further down may open "**Status: PROPOSED, 2026-...**" about itself (milestone 126 (the
+    # `procps` package) does), and that is prose.
+    h1 = re.search(r"^# .*\n(?:[ \t]*\n)*", text, re.M)
+    m = STATUS_TOKEN.match(text, h1.end()) if h1 else None
+    if m:
+        rest = text[m.end():]
+        nxt = re.match(r"[ \t]*(\n[ \t]*)?(\S?)", rest)
+        following = nxt.group(2) if nxt else ""
+        lead = status_lead(m.group(1), m.group(2), following, built)
+        if rest.startswith("\n"):
+            lead = lead.rstrip()
+        text = text[:m.start()] + lead + rest
+    text = BUILT_TOKEN.sub("", text)
+    return GATE_TOKEN.sub("", text)
+
+
+def without_field_tokens(text):
+    """`without_fields`, and the tag opening a Follow-on or Revisit bullet removed too: what the
+    prose ratchet measures of a roadmap document in either form."""
+    text = without_fields(text)
+    out = []
+    for line in text.split("\n"):
+        m = DISPOSITION.match(line) or REVISIT.match(line)
+        out.append("- " + m.group(m.lastindex).lstrip() if m else line)
+    return "\n".join(out)
