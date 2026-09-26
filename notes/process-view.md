@@ -20,15 +20,18 @@ That is what makes this a good first demonstration of the argument milestone 121
 directories. Enumeration is a larger power than reading something you were handed, and the claim
 needs no setup: the reader already knows the Unix behaviour is wrong.
 
-## The design: a view over a supervision subtree
+## The design: a view over a supervision domain
 
-The scope is the supervision subtree, because the kernel already maintains it. A thread's
+The scope is the supervision domain, because the kernel already maintains it (§223 (the process view
+is the supervision domain)). A thread's
 supervision endpoint is recorded at `START` (`Thread::fault_ep`, DECISIONS §26) and never changes.
 The set of threads whose deaths arrive on one endpoint is therefore a set the kernel keeps for its
 own reasons, exactly maintained, and it costs nothing to read.
 
-So the domain a viewer sees is the endpoint it holds. Same move `rm -r` makes with a directory
-subtree: authority is a subtree, not a global. A scope the system already keeps cannot drift out of
+So the domain a viewer sees is the endpoint it holds, one level deep: a grandchild appears only if
+its spawner named the same endpoint at `START`. A monitor over unrelated services holds `ENUMERATE`
+on each one's endpoint. Same move `rm -r` makes with a directory it was handed: authority is held,
+not global. A scope the system already keeps cannot drift out of
 agreement with reality, which is the property a registry would not have had.
 
 The wide grant is not forbidden. It is nameable. An operator's monitor over the whole machine is
@@ -673,7 +676,7 @@ which this one could not: re-running a named command needs a program to hold spa
 here belongs to the shell alone (`grant_plan::spawnproto`) and is granted to nothing the shell spawns
 (an interruptible child is built with no capabilities in its capability table at all), so there was
 no route from "a program is running" to "that program can start a second one". That is the same
-category of gap `top`, `pwdx` and `w` are blocked on. So it redrew the one thing it could already
+category of gap `top`, `pwdx` and `w` were blocked on. So it redrew the one thing it could already
 reach: the domain it was spawned into, which is `ps`'s own listing. A very thin member of `top`'s
 family wearing `watch`'s name, which is why the name was wrong and why neither it nor `crates/watch`
 was ever ratified. calef declined to rule on both while this milestone might retire them; it did.
@@ -685,12 +688,14 @@ flag on a table of two columns.
 
 ## What this does not build
 
-`pwdx`, `w`, the machine-wide statistics and `pidwait`. `sysctl` is declined (§115 (no `sysctl`)) and the
-signalling stratum is refused (milestone 455 (the signalling stratum of `procps`)). `pmap` is built but unreachable from the prompt. Each
-remaining program waits on a fork rather than on effort, and every fork is written up, with its
-premise checked, in [what is left](process-view/what-is-left.md). One of them corrects this note's
-own earlier reading: `pwdx` prints another process's working directory, not its name, and here only
-the shell has one.
+`w`, the machine-wide statistics and `pidwait`. `w` waits on a fork. The other two are ruled and
+wait on effort: §225 (`free` sees the machine and your share) and §226 (`pidwait` takes tids).
+`sysctl` is declined (§115 (no `sysctl`)), so is `pwdx` (§224 (no `pwdx`)), and the signalling
+stratum is refused (milestone 455 (the signalling stratum of `procps`)). `pmap` is built but
+unreachable from the prompt. Every fork is written up, with its premise checked, in
+[what is left](process-view/what-is-left.md). One of them corrects this note's own earlier reading:
+`pwdx` prints another process's working directory, not its name, and here only the shell has one,
+which is why it was declined.
 
 See `design/roadmap/126-who-else-is-running.md`, notes/glob.md (the matcher `pgrep` reuses),
 notes/supervision.md (the mechanism this reads),

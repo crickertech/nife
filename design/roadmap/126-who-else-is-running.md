@@ -8,11 +8,17 @@ which is packages rather than programs we like. Re-swept and condensed 2026-09-2
 `milestone/126-procps`, which found three claims here stale and one premise false (see "Corrections,
 2026-09-26").
 
-**Gate: DECISION §164, DECISION.** Nothing left in this package is waiting on effort. `w` waits on
-§164 (whether the kernel resolves a tid it already sent), because a tid has no name. `pwdx`, the
-machine-wide statistics, `pidwait` and `pmap`'s reach from the prompt each wait on a fork nobody has
-ruled on, written up with the seven questions answered in
-[notes/process-view/what-is-left.md](../../notes/process-view/what-is-left.md).
+**Gate: DECISION §164, DECISION.** `w` waits on §164 (whether the kernel resolves a tid it already
+sent), because a tid has no name. `pmap`'s reach from the prompt waits on a fork nobody has ruled
+on, written up with the seven questions answered in
+[notes/process-view/what-is-left.md](../../notes/process-view/what-is-left.md). `free` and `vmstat`
+wait only on effort now: §225 (`free` sees the machine and your share) ruled their shape 2026-09-26.
+`pidwait`'s shape is ruled too, §226 (`pidwait` takes tids), with its wait primitive still owed.
+
+A program does one and only one thing (calef, 2026-09-26: *"One thing I like about unix is that a
+program does one and only one thing."*). It decided `pidwait`, and it is the test for every row this
+package still has open. Where upstream folds two jobs into one binary or one flag, this package
+ships two programs, provided they hold different authority (milestone 281's rule).
 
 ## Where the package stands
 
@@ -34,12 +40,12 @@ came to miss it.
 | `watch` | built 2026-08-24, cut 2026-09-13 by milestone 281 (`watch` holds exactly what `ps` holds) | notes/process-view.md |
 | `sysctl` | declined, §115 (no `sysctl`) | this block |
 | `kill`, `pkill`, `skill`, `snice` | refused, milestone 455 (the signalling stratum of `procps`) | `design/roadmap/455-the-signalling-stratum.md` |
-| `pwdx` | fork: decline recommended | what-is-left.md, section 1 |
+| `pwdx` | declined 2026-09-26, §224 (no `pwdx`): only the shell has a working directory | `design/decisions/224-no-pwdx.md` |
 | `w` | waits on §164, and on a second session existing | what-is-left.md, section 2 |
-| `free`, `vmstat` | fork: machine-wide memory statistics | what-is-left.md, section 3 |
-| `slabtop` | no subject: milestone 14 (kernel objects from untyped) removed the kernel's slab | what-is-left.md, section 3 |
-| `tload` | folds into the statistics fork, or into `top` | what-is-left.md, section 3 |
-| `pidwait` | fork: a wait mode on `pgrep`, recommended | what-is-left.md, section 4 |
+| `free`, `vmstat` | ruled 2026-09-26, unbuilt: a region method and a withholdable machine memory page, §225 | `design/decisions/225-free-sees-the-machine-and-your-share.md` |
+| `slabtop` | no slab since milestone 14 (kernel objects from untyped); becomes §225's region method asked per object type | what-is-left.md, section 3 |
+| `tload` | not a program: a line in `top`'s summary (§225) | what-is-left.md, section 3 |
+| `pidwait` | ruled 2026-09-26, unbuilt: takes tids and composes with `pgrep`, §226 | `design/decisions/226-pidwait-takes-tids.md` |
 
 ## Why this package, and why the package rather than the program
 
@@ -66,10 +72,11 @@ because a snapshot needs no clock and no accounting.
 
 ## The design: a view over a supervision domain
 
-The scope is the supervision subtree, because the kernel already maintains it. A shell holds a
-domain; the programs it spawns are in that domain; a `ps` launched from that shell sees exactly
-those and nothing else. It is the same move `rm -r` makes with a directory subtree: authority is a
-subtree, not a global. A scope the system already keeps cannot drift out of agreement with reality.
+The scope is the supervision domain, because the kernel already maintains it: the threads one
+endpoint directly supervises, one level deep (§223 (the process view is the supervision domain)). A
+shell holds a domain; the programs it spawns are in that domain; a `ps` launched from that shell
+sees exactly those and nothing else. It is the same move `rm -r` makes with a directory it was
+handed: authority is held, not global. A scope the system already keeps cannot drift out of agreement with reality.
 
 The view is `abi::rendezvous::SURVEY`, a method on the supervision endpoint and no new syscall
 number. Membership is `capability::survey_includes`, the same relationship that authorizes a reap
@@ -186,35 +193,44 @@ this wrong looks like `ps` working beautifully while the confinement is decorati
 - Aggregate statistics are a side channel, and capabilities do not close it. CPU time per thread,
   which `top` now shows, leaks information about work the viewer was never shown. A capability
   bounds who may ask; it says nothing about what the numbers reveal to whoever may.
-- A supervision-derived view cannot express a set that is not a subtree. The workaround is a
-  supervisor existing only to be a common parent. No decision records that this was chosen; see
-  Follow-on.
+- A supervision-derived view cannot express a set that is not a union of domains. A monitor over
+  unrelated services holds `ENUMERATE` on each service's endpoint and sees whole domains at a time,
+  never one member picked out of a domain it was not handed. §223 (the process view is the
+  supervision domain) decided this.
 - The comparison against Linux is not apples to apples. Ours lists a domain; theirs lists a machine.
   That is the entire point, and a table putting them side by side without saying so would be
   dishonest in the way the map "tie" caveat exists to prevent.
 
 ## Follow-on
 
-- **Outstanding.** `pwdx` is unbuilt, with no ruling on whether it should exist. Upstream prints
-  another process's working directory, and here only the shell holds one (`grant_plan::nav::Cwd`
-  appears in `crates/grant_plan` and the shell and nowhere else, checked 2026-09-26). Declining it,
-  as §115 declined `sysctl`, is recommended in `notes/process-view/what-is-left.md` and is calef's
-  to rule.
+- **Decision.** `pwdx` is not built and will not be: `design/decisions/224-no-pwdx.md` (calef,
+  2026-09-26). Upstream prints another process's working directory, and here only the shell holds
+  one (`grant_plan::nav::Cwd`), which it already prints with `pwd`.
 - **Outstanding.** `w` is unbuilt: a tid has no name (§164, still `PROPOSED`), and
   `components/src/login.rs` runs one session at a time, so a `w` would always print one row. Checked
   2026-09-26.
-- **Outstanding.** `free` and `vmstat` are unbuilt, and `slabtop` and `tload` with them. The
+- **Decision.** How `free` and `vmstat` learn about memory is ruled in
+  `design/decisions/225-free-sees-the-machine-and-your-share.md` (calef, 2026-09-26): a
+  `MemoryRegion` method under `ENUMERATE` for the caller's share, and a machine memory page granted
+  to every login by default and withholdable by the owner.
+- **Outstanding.** `free` and `vmstat` are unbuilt, and `slabtop` (per object type) with them. The
   page-frame statistics in `kernel/src/memory.rs` are still read only by the boot summary and kernel
-  tests, with no path to userspace. Checked 2026-09-26; the fork is in what-is-left.md, section 3.
-- **Outstanding.** `pidwait` is unbuilt. It holds exactly `pgrep`'s slots, `RECV` needs `READ` that
-  a viewer lacks, and polling `SURVEY` is a yield-spin until milestone 106. Recommended as a `pgrep`
-  mode once milestones 47 and 106 land. Checked in `kernel/src/syscall.rs` 2026-09-26.
+  tests. The method's number, the page's layout and its name are the building lane's to propose.
+  Checked 2026-09-26.
+- **Decision.** `pidwait` takes tids, not a pattern, and composes as `pidwait $(pgrep foo)`:
+  `design/decisions/226-pidwait-takes-tids.md` (calef, 2026-09-26). `pgrep --wait`, one binary with
+  two names, and a pattern-taking `pidwait` are refused there.
+- **Outstanding.** `pidwait` is unbuilt. Nothing lets it observe a named tid's exit without more
+  authority than the ruling gives it: `RECV` needs `READ` and steals the death message, and polling
+  `SURVEY` needs `ENUMERATE`, which is `pgrep`'s. The shell has pipes and no `$( … )`. Both are in
+  §226's open list for the building lane. Checked in `kernel/src/syscall.rs` and `crates/swish`
+  2026-09-26.
 - **Outstanding.** `pmap` is unreachable from the prompt: `crates/grant_plan` has no program variant
   for it, and `take_user_address_space` still deregisters a space at `CONFIGURE`. Checked
   2026-09-26.
-- **Outstanding.** The decision that the process view is the supervision subtree was taken by
-  construction and never written down, so a non-subtree view is neither built nor refused. A draft
-  an integrator can mint is at the end of what-is-left.md. Checked `design/decisions/` 2026-09-26.
+- **Decision.** The process view is the supervision domain, one level of direct supervision:
+  `design/decisions/223-the-process-view-is-the-supervision-domain.md` (calef, 2026-09-26, "A, and
+  refuse B"). A separate process namespace is refused.
 - **Milestone 47.** A pattern still cannot be typed at `pgrep`, because its manifest in
   `crates/grant_plan` is `ArgSpec::Forbidden` and positional arity is 47's.
 - **Decision.** `sysctl` is not built and will not be: `design/decisions/115-no-sysctl.md`.
@@ -232,5 +248,5 @@ The sharpest ambient-authority case in the utility set, because what these progr
 enumeration of the process namespace, and `/proc` hands it to anyone. Taken as a whole package for
 consistency with 123's corpus approach. Replacing `/proc` with a held capability stratifies it.
 `ps`, `pgrep`, `pmap`, `uptime` and `top` are built over `rendezvous::SURVEY` and `ENUMERATE`.
-`sysctl` and the signalling programs are declined, and `watch` was built and cut. `pwdx`, `w`, the
-memory statistics and `pidwait` wait on forks written up in notes/process-view/what-is-left.md.
+`sysctl`, `pwdx` and the signalling programs are declined, and `watch` was built and cut. The
+memory statistics (§225) and `pidwait` (§226) are ruled and unbuilt; `w` waits on §164.

@@ -4,7 +4,8 @@ An appendix to [the process view](../process-view.md), written 2026-09-26 by the
 `milestone/126-procps` for milestone 126 (the `procps` package: who else is running, and who is
 allowed to ask). Every remaining program in the package is blocked on a fork rather than on effort.
 This file holds each fork with the seven questions AGENTS.md asks of one, so that a ruling can be
-made without reading anything else. None of it is decided. The milestone block
+made without reading anything else. Sections 1, 3 and 4 are decided: §224 (no `pwdx`), §225 (`free`
+sees the machine and your share) and §226 (`pidwait` takes tids). The rest is not. The milestone block
 (`design/roadmap/126-who-else-is-running.md`) carries the status; this carries the reasoning.
 
 The stem `what-is-left` is a provisional name, minted with this file. Nothing here adds a kernel
@@ -12,6 +13,10 @@ method or a syscall, and nothing here was built. Where an option would
 need one, the option says so and stops.
 
 ## 1. `pwdx`: the premise the block carried was wrong
+
+Decided 2026-09-26: option A. calef: *"Yes, decline pwdx."* The ruling is §224 (no `pwdx`), and
+the reason is the one below: only the shell has a working directory (`grant_plan::nav::Cwd`), so
+`pwdx` has nothing to report. The fork is kept as it was written, since it is the reasoning.
 
 The block filed `pwdx` beside `w` as "print a name for a tid", blocked on a display name. That is
 not what `pwdx` does. Upstream `pwdx PID` prints the process's current working directory, read from
@@ -73,6 +78,13 @@ now would demonstrate nothing a reader could not see by looking at the terminal.
 
 ## 3. `free`, `vmstat`, `slabtop` and `tload`: machine-wide statistics
 
+Decided 2026-09-26. calef: *"Rule 3."* A third shape that combines the two options below: option 1's
+region method for the caller's share, plus a read-only machine memory page held as a capability,
+granted to every login by default and withholdable by the owner. `free` prints a machine line, and
+a "yours" line when the caller holds a region. The ruling, its reasons and the prior art checked
+against primary sources are in §225 (`free` sees the machine and your share). The fork is kept as it
+was written.
+
 The block's 2026-08-26 fork covered `free` and `vmstat` and missed the other two members of the row.
 Re-checked 2026-09-26: `kernel/src/memory.rs`'s `stats()` and `free_page_frames()` are still read
 only by the boot summary and by kernel tests (`self_test.rs`, `testing.rs`, `sched.rs`, `user.rs`),
@@ -106,6 +118,12 @@ The two members the block missed each change shape under this fork:
 Blocked on this: `free` and `vmstat` entirely, and whatever `slabtop` and `tload` become.
 
 ## 4. `pidwait`: `pgrep`'s authority, waiting
+
+Decided 2026-09-26, and not as recommended below. calef: *"D."* `pidwait` takes tids and composes
+with `pgrep`, as `pidwait $(pgrep foo)`, on his principle that a program does one and only one
+thing. It holds different authority from `pgrep`, so milestone 281's rule allows two programs. The
+refusals, the prior art and what the building lane owes are in §226 (`pidwait` takes tids). The
+recommendation is kept as it was written.
 
 `pidwait` blocks until every matching process has exited. It asks the same question `pgrep` asks,
 over the same domain, and so holds the same three slots. By milestone 281's rule it is a mode of
@@ -146,8 +164,10 @@ lifecycle. Both are architect's calls. `pmap <tid>` also needs an operand, so mi
 The block recommended deriving the view from the supervision tree, and the tree took that option by
 construction when `ps` shipped over `rendezvous::SURVEY`. No file under `design/decisions/` records
 it, so a non-subtree view (a monitor watching two unrelated services) is neither built nor refused.
-A lane may not write that section. This is draft text an integrator can mint as one, `DECIDED` by
-construction if calef agrees.
+A lane may not write that section, so this was draft text for an integrator. It is now minted as
+§223 (the process view is the supervision domain), with the seven questions answered there, and
+calef decided it 2026-09-26: "A, and refuse B." Two corrections came with it: the view is one supervision domain rather than every
+descendant, and a monitor can watch unrelated services by holding each one's endpoint.
 
 The process view is the supervision subtree. A viewer holding `ENUMERATE` on a supervision endpoint
 sees that endpoint's domain and nothing else. A set of processes that is not a subtree is expressed

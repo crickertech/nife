@@ -330,6 +330,10 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 218 | DECIDED | [Carry a Kani patch so riscv64 is proved, and send it upstream](218-carry-a-kani-patch-so-riscv64-is-proved.md) |
 | 219 | DECIDED | [How the shell names an installed program to the spawner](219-naming-an-installed-program-to-the-spawner.md) |
 | 220 | DECIDED | [Signed builds: a vendor signs, a developer self-signs, and trusting a key is scoped](220-signed-builds-and-scoped-key-trust.md) |
+| 223 | DECIDED | [The process view is the supervision domain](223-the-process-view-is-the-supervision-domain.md) |
+| 224 | DECIDED | [No `pwdx`: only the shell has a working directory, so there is nothing to report](224-no-pwdx.md) |
+| 225 | DECIDED | [`free` sees the machine and your share: a region method and a withholdable memory page](225-free-sees-the-machine-and-your-share.md) |
+| 226 | DECIDED | [`pidwait` takes tids and composes with `pgrep`, because a program does one thing](226-pidwait-takes-tids.md) |
 
 Two blocks that lived among the decisions are not decisions and moved out with the split, the same
 way milestone 76 moved four essays out of the roadmap: [the open design
