@@ -174,6 +174,11 @@ The digest is the member's, not the package's: the spawner is handed the executa
 package's table of contents already carries each member's digest. The recipe's digest over the whole file (§195 (a reviewed recipe vouches for a package))
 is still what installing checks first; the activation table records the member's.
 
+A bare word runs an installed program too (§229 (how a bare name at the prompt reaches an installed
+program), B2, `swish::bare`). The shell looks the word up in the live generation, never matching an
+owner's vouch, and runs its `/packages/` path. A name the image also carries is refused, naming both.
+At install, another package's program of the same name is refused (`NameTaken`).
+
 ## Installing on the target
 
 Built 2026-09-26. Each of three words is one request to the progenitor and one reply naming the
