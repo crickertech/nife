@@ -550,9 +550,22 @@ const PAGE_FRAME_REPORT_MIN: usize = 16;
 /// the reason the entry above gives: a margin that only just clears a local reading has not
 /// accounted for the two-frame local-against-CI divergence that entry measured. 22352 + 32 = 22384.
 ///
+/// `22_672` (2026-09-26): a display terminal's grid doubled, and three of them outlive their
+/// tests. Milestone 142 (a text display good enough that people use it instead of a GUI) widened
+/// `video_terminal::Cell` from eight bytes to sixteen for truecolour, so a `Vt`, which lives in
+/// `display_terminal`'s `.bss`, went from 362,208 bytes to 724,416: 89 more frames per terminal
+/// process. The CI run on that branch against the merge-queue run before it, aarch64 against
+/// aarch64: `focus_routes_a_keystroke_to_one_terminals_grid_and_not_its_neighbours` kept 779
+/// frames against 601 (two terminals), `a_bitmap_font_and_a_vt_engine_put_readable_text_on_the_
+/// scanout` 594 against 505 (one). That is 267 of the suite's 273-frame rise (22367 to 22640); the
+/// rest is one or two frames scattered across tests that do not touch a terminal. riscv64 rose by
+/// the same amount, 22226 to 22502. It is a design cost of the wider cell rather than a leak: those
+/// terminals are left running the way the graphical boot leaves its own. +32 headroom, as the entry
+/// above: 22640 + 32 = 22672.
+///
 /// Raising or lowering it is a decision, not a formality: read the `[that test kept N frames]`
 /// lines the run prints, find who grew or shrank, and be able to say why.
-const SUITE_PAGE_FRAME_BUDGET: usize = 22_384;
+const SUITE_PAGE_FRAME_BUDGET: usize = 22_672;
 
 /// **The longest run of free frames the boot must still have at the end**, in frames.
 ///
