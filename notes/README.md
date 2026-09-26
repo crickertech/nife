@@ -129,7 +129,8 @@ What runs at EL0: the std port, the shell, components, and the services they cal
 - [The glob matcher](glob.md): a pure byte glob matcher with a bounded cost.
 - [Globbing, and the expansion you see is the grant](glob-grant.md).
 - [A set grant at the prompt](a-set-grant-at-the-prompt.md): DECIDED.
-- [Navigating with no global namespace](shell-navigation.md): `cd`, `pwd`, `ls`, `mkdir` and `rm` as capability builtins.
+- [Navigating with no global namespace](shell-navigation.md): `cd`, `pwd`, `ls`, `mkdir`, `rm`.
+- [The shell edits its own line](shell-line-editing.md): raw mode, Tab, `^C`.
 - [The inert-configuration page](env-config.md): validated read-only `TZ`, `LANG` and `TERM` for programs.
 - [The documentation crate](documentation.md): streaming markdown renderer, manual viewer and search index.
 - [The component manifest](component-manifest.md): what a supervisor must route before a component serves.
@@ -193,7 +194,7 @@ What runs at EL0: the std port, the shell, components, and the services they cal
 - [Taking a benchmark on radon](footprint-perturbation.md): running the cache-footprint experiments on the small-cache board.
 - [The workload that does not stop](soak.md): a sustained multicore workload whose threads never migrate.
 - [A kernel-initiated reboot on every board](board-reboot.md).
-- [The multicore defect-discovery curve](multicore-defect-curve.md): milestone 201 (is multicore reliability converging)'s data, the format a soak appends to, and every multicore defect so far. Name provisional.
+- [The multicore defect-discovery curve](multicore-defect-curve.md): milestone 201 (is multicore reliability converging)'s data and every multicore defect so far. Name provisional.
 - [The multi-tasking workload benchmark](job-mix.md): an AIM7-style workload for the process-versus-event kernel question.
 - [Cycle counters on RISC-V, and why nothing here has measured one](riscv-cycle-counters.md).
 - [Does the TSC tick at a constant rate under TCG?](tsc-under-tcg.md). Name provisional.
