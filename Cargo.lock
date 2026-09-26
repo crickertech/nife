@@ -555,6 +555,7 @@ dependencies = [
  "line_editor",
  "login_protocol",
  "machine_discovery",
+ "machine_statistics_protocol",
  "measured_boot",
  "memory_corruption_canary_gate",
  "memory_regions",
@@ -630,6 +631,13 @@ name = "machine_discovery"
 version = "0.1.0"
 dependencies = [
  "device_tree_blob",
+]
+
+[[package]]
+name = "machine_statistics_protocol"
+version = "0.1.0"
+dependencies = [
+ "current_cpu_protocol",
 ]
 
 [[package]]
@@ -963,6 +971,7 @@ dependencies = [
  "http_response",
  "line_editor",
  "login_protocol",
+ "machine_statistics_protocol",
  "measured_boot",
  "nifefs",
  "package_archive",

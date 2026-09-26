@@ -1292,6 +1292,11 @@ pub fn init() {
     // was invisible on the third.
     crate::arch::fp::init();
 
+    // **The machine statistics page, before the first thread** (milestone 126, DECISIONS §225),
+    // for `fp::init`'s reason: this is where threads begin, so it is where the counters that watch
+    // them begin, on all three architectures through the one function each boot path calls.
+    crate::machine_statistics::publish();
+
     let mut sched = IPC_TABLES.lock();
 
     // **Install the empty tables FIRST, then name the boot thread through them**, rather than
@@ -1405,6 +1410,9 @@ pub const RESCHED_SGI: u32 = 0;
 /// handler's tail runs `schedule()` and picks them up. IRQ context, so interrupts are masked, which
 /// is what `with_runq` needs; we hold nothing else, so taking the inbox is rank-safe (§11).
 pub fn drain_inbox() {
+    // Every caller is a cross-core interrupt arm (one per architecture), so this is where the
+    // machine statistics page counts them (milestone 126).
+    crate::machine_statistics::interrupt();
     let mut moved = 0u64;
     let mut inbox = cpu::current().inbox.lock();
     while let Some(thread) = inbox.pop_front() {
@@ -1895,6 +1903,12 @@ pub fn on_tick() {
     // bounds-checked index and one relaxed increment, which is the whole of the accounting; see
     // [`CPU_TICKS`] for why the counter is an array beside the table rather than a field in it.
     charge_tick();
+    // **And the machine's own view of the same tick** (milestone 126, DECISIONS §225): busy or
+    // idle, and how many threads were waiting, for `vmstat` and `top`'s summary. Lock-free, like
+    // `charge_tick`: the idle tid and the run-queue length are this core's own relaxed mirrors.
+    let here = cpu::current();
+    let idle = current_thread_id() == here.idle.load(Ordering::Relaxed);
+    crate::machine_statistics::tick(idle, here.runnable() as u64 + u64::from(!idle));
     // The corruption tripwire, when armed (the board tour's initrd-demo window). One relaxed
     // load when it is not, which is every other tick everywhere. IRQ context is safe for its
     // println: the console's IrqSafeMutex masks interrupts while held, so the interrupted
@@ -2271,6 +2285,10 @@ pub fn schedule() {
         //
         // This call does not return here. It returns *in another thread*, at the point where
         // that thread last called `switch_to`. We come back only when somebody switches to us.
+        //
+        // Counted first, for `vmstat`'s `cs` column (milestone 126): one load and one add on this
+        // core's own cache line of the machine statistics page.
+        crate::machine_statistics::context_switch();
         unsafe { switch_to(prev_slot, next_ctx) };
 
         // We are now the incoming thread, resuming. Reap whoever we switched away from, if it had
@@ -2440,6 +2458,8 @@ pub fn irq_route(intid: u32) -> Option<RendezvousId> {
 /// cannot have been holding, because `IrqSafeMutex` masks interrupts for exactly as long as it
 /// is held. See DECISIONS §9.
 pub fn irq_notify(ep: RendezvousId) {
+    // A device interrupt routed to a driver, counted for `vmstat`'s `in` column (milestone 126).
+    crate::machine_statistics::interrupt();
     // A device-IRQ wake is LOAD-AWARE (DECISIONS §28.2), unlike a rendezvous wake, which stays
     // local. If the woken driver lands on a *remote* core, `wake_load_aware` returns that core so we
     // can poke it after IPC_TABLES is released (the `place_on` discipline: push under the lock, SGI

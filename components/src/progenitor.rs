@@ -87,6 +87,9 @@ const GRANTS: BootEndowment = BootEndowment {
     // or this, never both. Past the network card's floor (slot 15) for the reason every group above
     // gives.
     entropy_ep: 16,
+    // The machine statistics page (milestone 126, DECISIONS §225), granted on every boot, past the
+    // entropy slot.
+    machine_page: 17,
     // Nothing. Since milestone 166 the boot loader is not shared with milestone 19d's test roles on
     // any architecture, so the kernel grants exactly what the interactive system uses. aarch64 once
     // carried a report endpoint (slot 1) and the 19d.2b test interrupt (slot 3) here.

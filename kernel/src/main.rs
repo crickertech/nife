@@ -46,6 +46,7 @@ mod iommu;
 #[cfg(any(test, feature = "ipc_stack_depth"))]
 mod ipc_stack_depth;
 mod kmem;
+mod machine_statistics;
 mod memory;
 mod panic;
 #[cfg(test)]

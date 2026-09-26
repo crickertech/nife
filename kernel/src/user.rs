@@ -2206,6 +2206,21 @@ pub fn boot_progenitor(archive: &'static [u8]) -> Result<crate::thread::ThreadId
         .expect("insert the instruction entropy service");
         assert_eq!(s16, 16);
     }
+    // **The machine statistics page** (slot 17, milestone 126, DECISIONS §225 part 2), the
+    // config page's shape: a frame the kernel keeps its machine-wide counters in, granted
+    // unconditionally so its slot never moves, and `READ | GRANT` so the progenitor can map it
+    // read-only into a child that declares `machine` and can let nobody write it. Past the
+    // entropy slot, the highest fixed number before it. See `crate::machine_statistics`.
+    let s17 = crate::sched::thread_control_block_insert_cap(
+        tid,
+        crate::cap::page_frame_cap(
+            crate::machine_statistics::page_phys(),
+            Rights::READ.union(Rights::GRANT),
+        ),
+        Some(17),
+    )
+    .expect("insert the machine statistics page");
+    assert_eq!(s17, 17);
     // The graphical terminal stack (slots 10-12, milestone 177), when a GPU is attached
     // (milestone 192 dropped the keyboard from the condition; the UART is a keystroke source too).
     // `None` on a boot with no GPU: system_initializer builds the plain console/input pair

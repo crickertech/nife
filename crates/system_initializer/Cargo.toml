@@ -9,6 +9,9 @@ workspace = true
 
 [dependencies]
 abi = { version = "0.1.0", path = "../abi" }
+# The machine statistics page's address in a child (milestone 126, DECISIONS §225): one constant
+# the kernel's page and its readers agree on, so this progenitor maps it where they look.
+machine_statistics_protocol = { version = "0.1.0", path = "../machine_statistics_protocol" }
 nifefs = { version = "0.1.0", path = "../nifefs" }
 elf = { version = "0.1.0", path = "../elf" }
 # The grant expression and its wire form: what the shell resolved a typed line into, and the
