@@ -333,6 +333,7 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 223 | PROPOSED | [The process view is the supervision subtree](223-the-process-view-is-the-supervision-subtree.md) |
 | 224 | DECIDED | [No `pwdx`: only the shell has a working directory, so there is nothing to report](224-no-pwdx.md) |
 | 225 | DECIDED | [`free` sees the machine and your share: a region method and a withholdable memory page](225-free-sees-the-machine-and-your-share.md) |
+| 226 | DECIDED | [`pidwait` takes tids and composes with `pgrep`, because a program does one thing](226-pidwait-takes-tids.md) |
 
 Two blocks that lived among the decisions are not decisions and moved out with the split, the same
 way milestone 76 moved four essays out of the roadmap: [the open design
