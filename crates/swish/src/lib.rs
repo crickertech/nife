@@ -85,8 +85,10 @@
 
 #![no_std]
 
+pub mod complete;
 pub mod sequence;
 
+use environment_protocol::ConfigPage;
 use filesystem_protocol::dir;
 use grant_plan::expand::{Expansion, NameSet};
 use grant_plan::line::{self, Line};
@@ -129,7 +131,34 @@ pub enum Say {
     /// [`nav::Refused`] and [`nav::BindRefused`] are separate types rather than one enum with two
     /// unrelated halves.
     CannotBind(nav::BindRefused),
+    /// **The shell's heap could not hold what the line needed**, so nothing ran. The heap is capped
+    /// at [`HEAP_MAX_BYTES`] and every allocation in the shell is fallible (calef's ruling, milestone
+    /// 47 (navigation and naming)): the boot shell is the owner's console, and running out of
+    /// memory there is a refusal with a sentence, never a panic.
+    HeapFull,
 }
+
+/// **The cap on the shell's heap**: 32 KiB, eight pages, mapped from a region of
+/// [`HEAP_REGION_PAGES`] split off the shell's budget before anything else is (milestone 47
+/// (navigation and naming), calef's ruling of 2026-09-26).
+///
+/// Why this number. The heap holds what a line needs for as long as the line runs: a pipeline's
+/// planned stages today, and later a name page for a set grant. Those are a few KiB, so 32 KiB is
+/// several times the largest line. The cap exists so that a leak exhausts the heap, which refuses
+/// the next line with [`Say::HeapFull`], long before it could reach the budget the shell builds its
+/// children from.
+///
+/// Name: provisional, milestone 47's allocator lane, 2026-09-26.
+pub const HEAP_MAX_BYTES: u64 = 32 * 1024;
+
+/// **The region the heap maps from**, split off the shell's budget first at `_start` so it sits
+/// under every later carve and never breaks their last-in first-out return. The cap's eight pages,
+/// plus four for the page tables a mapping at `user_mode_runtime::heap::DEFAULT_BASE` costs. Two is
+/// what the table depth of each architecture predicts, not a measurement, so four leaves margin.
+/// Twelve of the budget's 128 pages.
+///
+/// Name: provisional, milestone 47's allocator lane, 2026-09-26.
+pub const HEAP_REGION_PAGES: u64 = 12;
 
 /// **What a command did**, which is what `$?` reports and what `&&` reads (milestone 67,
 /// notes/swish-language.md).
@@ -205,10 +234,10 @@ impl Status {
 
     /// The number as bytes, which is `'static` because there are three of them.
     ///
-    /// That is not a micro-optimisation, it is what makes `$?` expressible at all in a shell with
-    /// no allocator: a substituted word has to be a slice with the line's lifetime, and a `'static`
-    /// slice unifies with any of them. A status with an unbounded range would need a buffer, and
-    /// there would be nowhere to put one.
+    /// That is not a micro-optimisation: a substituted word has to be a slice with the line's
+    /// lifetime, and a `'static` slice unifies with any of them. The shell has had a capped heap
+    /// since 2026-09-26, so a value that needs a buffer could now have one; what keeps it one word
+    /// is [`pieces`], not the absence of an allocator.
     pub fn digits(self) -> &'static [u8] {
         match self {
             Status::Ran => b"0",
@@ -370,6 +399,62 @@ pub fn echo(
     expand: &mut dyn FnMut(&[u8]) -> Result<NameSet, Say>,
     out: &mut dyn FnMut(&[u8]),
 ) -> Say {
+    let status_word = |w: &[u8]| (w == STATUS_WORD).then(|| status.digits());
+    let said = pieces(text, &status_word, &mut |piece| {
+        match piece {
+            Piece::Space(s) | Piece::Quoted(s) | Piece::Substituted(s) => out(s),
+            Piece::Word(w) => match is_pattern(w) {
+                Ok(false) => out(w),
+                Ok(true) => match expand(w) {
+                    Ok(set) => write_set(&set, out),
+                    // A pattern that matched nothing stops the line rather than printing itself.
+                    // That is the same answer `rm` gets, and it has to be: if `echo` printed the
+                    // pattern where `rm` refuses, the two would disagree about what the line
+                    // designates, which is the one thing this pairing exists to rule out.
+                    Err(s) => return Err(s),
+                },
+                Err(r) => return Err(Say::Cannot(r)),
+            },
+        }
+        Ok(())
+    });
+    match said {
+        Ok(()) => Say::Nothing,
+        Err(s) => s,
+    }
+}
+
+/// **One piece of a line, as the shell reads it for substitution** (milestone 47 (navigation and
+/// naming), §141 (application is grant)).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Piece<'a> {
+    /// Whitespace between words, verbatim.
+    Space(&'a [u8]),
+    /// A quoted word's text, never expanded or substituted.
+    Quoted(&'a [u8]),
+    /// A word that `substitute` replaced. **Always one word**, whatever its bytes are.
+    Substituted(&'a [u8]),
+    /// A bare word nothing replaced.
+    Word(&'a [u8]),
+}
+
+/// **Split a line into words, then substitute, never the other way round.** This is the rule that
+/// keeps word splitting out of this shell (§141 (application is grant), "kill word splitting"): the
+/// line is split on the whitespace that was *typed*, and a word `substitute` replaces becomes one
+/// [`Piece::Substituted`] whatever it contains. A value with a space in it is never split into two
+/// words, because nothing here looks at a substituted value's bytes again.
+///
+/// Before the shell had an allocator this held because `$?` is one of three `'static` digits.
+/// Now that it has one, it holds because substitution has exactly this one seam, and
+/// `a_substituted_value_is_never_split` fails if it ever splits.
+///
+/// `each` may stop the line by returning an `Err`, which is returned. A word whose quotes do not
+/// make sense is refused as `Say::Cannot`.
+pub fn pieces<'a>(
+    text: &'a [u8],
+    substitute: &dyn Fn(&[u8]) -> Option<&'a [u8]>,
+    each: &mut dyn FnMut(Piece<'a>) -> Result<(), Say>,
+) -> Result<(), Say> {
     let mut i = 0;
     while i < text.len() {
         let space = i;
@@ -377,41 +462,25 @@ pub fn echo(
             i += 1;
         }
         if i > space {
-            out(&text[space..i]);
+            each(Piece::Space(&text[space..i]))?;
         }
         let word = i;
-        // A word ends at the first **bare** whitespace, so `echo "two  spaces"` is one word and
-        // keeps the spacing inside it.
+        // A word ends at the first bare whitespace, so `echo "two  spaces"` is one word and keeps
+        // the spacing inside it.
         i = grant_plan::word::span(text, i, &|b| b.is_ascii_whitespace());
         if i == word {
             continue;
         }
-        let token = match grant_plan::word::read(&text[word..i]) {
-            Ok(w) => w,
-            Err(r) => return Say::Cannot(r),
-        };
+        let token = grant_plan::word::read(&text[word..i]).map_err(Say::Cannot)?;
         if token.quoted {
-            out(token.text);
-            continue;
-        }
-        if token.text == STATUS_WORD {
-            out(status.digits());
-            continue;
-        }
-        match is_pattern(token.text) {
-            Ok(false) => out(token.text),
-            Ok(true) => match expand(token.text) {
-                Ok(set) => write_set(&set, out),
-                // A pattern that matched nothing stops the line rather than printing itself. That is
-                // the same answer `rm` gets, and it has to be: if `echo` printed the pattern where
-                // `rm` refuses, the two would disagree about what the line designates, which is the
-                // one thing this pairing exists to rule out.
-                Err(s) => return s,
-            },
-            Err(r) => return Say::Cannot(r),
+            each(Piece::Quoted(token.text))?;
+        } else if let Some(value) = substitute(token.text) {
+            each(Piece::Substituted(value))?;
+        } else {
+            each(Piece::Word(token.text))?;
         }
     }
-    Say::Nothing
+    Ok(())
 }
 
 // ---- batching at the bound (milestone 109) ----
@@ -770,6 +839,11 @@ pub fn write_say(s: Say, out: &mut dyn FnMut(&[u8])) {
             out(r.message().as_bytes());
             out(b"\n");
         }
+        Say::HeapFull => {
+            out(b"  this shell's heap is full (its cap is ");
+            write_num(HEAP_MAX_BYTES / 1024, out);
+            out(b" KiB), so the line did not run and nothing was spawned\n");
+        }
     }
 }
 
@@ -1084,6 +1158,7 @@ pub fn write_holdings(
     budget_pages: u64,
     holdings: Holdings,
     clock: Option<u64>,
+    config: Option<ConfigPage>,
     out: &mut dyn FnMut(&[u8]),
 ) {
     out(b"  this shell holds, and nothing else:\n");
@@ -1093,6 +1168,13 @@ pub fn write_holdings(
     out(b"    cap 3  untyped   ");
     write_num(budget_pages, out);
     out(b" pages  the memory it grants with --mem (initial)\n");
+    // **The heap is carved from that budget**, first, so it is part of what this row counts
+    // rather than a capability beside it (milestone 47 (navigation and naming), calef's ruling).
+    out(b"           ");
+    write_num(HEAP_REGION_PAGES, out);
+    out(b" of them are split into a region of their own that funds the heap, capped at ");
+    write_num(HEAP_MAX_BYTES / 1024, out);
+    out(b" KiB\n");
     match (&holdings.second, holdings.dir) {
         (Some(sd), _) => {
             // **Two rows, not one**, and a namespace section beneath them: milestone 154's own
@@ -1160,6 +1242,18 @@ pub fn write_holdings(
             out(b"     granted none, so 'time' has nothing to measure with)\n");
         }
     }
+    // **The configuration page, when this shell holds a view of it** (milestone 47 (navigation and
+    // naming), DECISIONS §111 (inert configuration is a validated page)). The clock's rights and
+    // the clock's reason: `READ` without `GRANT`, so reading it here widens nothing about which
+    // children see it. No row when it is absent, because nothing this shell does needs it; only
+    // `caps <command>` reads it, and says there what it cannot show.
+    if let Some(page) = config {
+        out(b"    cap ");
+        write_num(grant_plan::SHELL_CONFIG_SLOT, out);
+        out(b" frame     config     READ only, NOT delegable: the page a child declaring\n");
+        out(b"                                  config is endowed with, so 'caps' can show its values\n");
+        write_config_values(&page, b"                                  ", out);
+    }
     out(b"  it can name no devices and no other process. authority is what it holds.\n");
 }
 
@@ -1175,6 +1269,28 @@ fn write_bind_row(entry: &nav::BindEntry, out: &mut dyn FnMut(&[u8])) {
     let n = entry.pos().render(&mut buf);
     out(&buf[..n]);
     out(b"\n");
+}
+
+/// **The three inert-configuration keys, one per line**, in `printenv`'s spelling (`KEY=value`,
+/// or `KEY (unset)` for a key the page does not carry). A page nobody assembled reads as three
+/// unset keys, which is what [`ConfigPage`] answers for it and what the child would see.
+fn write_config_values(page: &ConfigPage, indent: &[u8], out: &mut dyn FnMut(&[u8])) {
+    for (key, value) in [
+        (b"TZ".as_slice(), page.tz()),
+        (b"LANG".as_slice(), page.lang()),
+        (b"TERM".as_slice(), page.term()),
+    ] {
+        out(indent);
+        out(key);
+        match value {
+            Some(v) => {
+                out(b"=");
+                out(v.as_bytes());
+            }
+            None => out(b" (unset)"),
+        }
+        out(b"\n");
+    }
 }
 
 /// One row of the two-grant namespace section: the label, a `*` marking the tree
@@ -1210,12 +1326,13 @@ pub fn write_caps(
     budget_pages: u64,
     holdings: Holdings,
     clock: Option<u64>,
+    config: Option<ConfigPage>,
     expand: &mut dyn FnMut(&[u8]) -> Result<NameSet, Say>,
     out: &mut dyn FnMut(&[u8]),
 ) {
     let mut tail = grant_plan::trim(tail);
     if tail.is_empty() {
-        return write_holdings(budget_pages, holdings, clock, out);
+        return write_holdings(budget_pages, holdings, clock, config, out);
     }
     // **`caps time <command>` previews the command**, because that is what would run and `time`
     // moves no authority to it: the shell times with its own clock and the child is spawned with the
@@ -1280,13 +1397,18 @@ pub fn write_caps(
         };
         match grant_plan::plan_stage(&spec, holdings, expanded, streams) {
             Err(refusal) => return write_refusal(&spec, refusal, out),
-            Ok(e) => write_preview(&e, out),
+            Ok(e) => write_preview(&e, config, out),
         }
     }
 }
 
 /// Write the endowment a resolved invocation would hand the new process.
-pub fn write_preview(e: &Endowment, out: &mut dyn FnMut(&[u8])) {
+///
+/// `config` is this shell's own view of the inert-configuration page, when it holds one
+/// ([`grant_plan::SHELL_CONFIG_SLOT`]). It is the frame the progenitor endows a child declaring
+/// [`grant_plan::Manifest::config`] with, so its values are printed as what that child will read.
+/// `None` prints the row without values and says why.
+pub fn write_preview(e: &Endowment, config: Option<ConfigPage>, out: &mut dyn FnMut(&[u8])) {
     out(b"  ");
     out(e.prog.name().as_bytes());
     out(b" would grant the new process, and nothing else:\n");
@@ -1383,12 +1505,15 @@ pub fn write_preview(e: &Endowment, out: &mut dyn FnMut(&[u8])) {
         out(b"                              and no token on the line could have asked for more\n");
     }
     // **The inert-configuration page, `clock`'s twin** (milestone 47, DECISIONS §111). No token on
-    // the line could designate it either, so it is the progenitor's to endow and this is where a reader
-    // learns the authority exists at all. Presence only, not values: this shell holds no default
-    // config set of its own to preview a value from yet (the "inheritance with visibility" middle
-    // ground the roadmap names is unbuilt), so printing a literal here would either duplicate
-    // the progenitor's default by coincidence or drift from it silently. See design/roadmap/47-navigation-
-    // and-naming.md's environment section for what remains.
+    // the line could designate it either, so it is the progenitor's to endow and this is where a
+    // reader learns the authority exists at all.
+    //
+    // **And its values, which is what §111 asked this preview for**: "print the actual values of
+    // declared inert config, not just the key names, so a misclassified value is visible to whoever
+    // is about to run something." They come from the shell's own read-only view of the *same frame*
+    // the child will be handed, never from a copy of the defaults, so the preview cannot drift from
+    // what the child reads. A shell given no view (a `login` session, a test role) says so rather
+    // than guessing.
     if e.prog.manifest().config {
         cap(
             if std {
@@ -1398,10 +1523,18 @@ pub fn write_preview(e: &Endowment, out: &mut dyn FnMut(&[u8])) {
             },
             out,
         );
-        out(b"frame     config   read-only. TZ, LANG and TERM as this boot's inert\n");
-        out(
-            b"                              defaults; nothing here can change what a shell hands\n",
-        );
+        match config {
+            Some(page) => {
+                out(b"frame     config   read-only, the page this shell reads too:\n");
+                write_config_values(&page, b"                              ", out);
+            }
+            None => {
+                out(b"frame     config   read-only. TZ, LANG and TERM as this boot's inert\n");
+                out(b"                              defaults; this shell holds no view of the page,\n");
+                out(b"                              so it cannot show their values\n");
+            }
+        }
+        out(b"                              nothing here can change what a shell hands\n");
         out(b"                              its children\n");
     }
     // **The row milestone 111 exists to print, and it is the point of that milestone rather than a
@@ -1600,6 +1733,47 @@ mod tests {
     use grant_plan::SecondDir;
 
     use super::*;
+
+    /// **No word splitting, ever** (calef's ruling, 2026-09-26, with the allocator; §141
+    /// (application is grant)). A substituted value with spaces, a tab and a pattern character in
+    /// it stays exactly one word, and the words around it are the ones that were typed. This fails
+    /// if substitution ever moves before splitting, or if a substituted value is ever read as
+    /// words or as a pattern again.
+    #[test]
+    fn a_substituted_value_is_never_split() {
+        let value: &[u8] = b"two  words\tand *.txt";
+        let sub = |w: &[u8]| (w == b"$X").then_some(value);
+        let mut got = Vec::new();
+        pieces(b"a $X 'b c' $X", &sub, &mut |p| {
+            got.push(p);
+            Ok(())
+        })
+        .unwrap();
+        let words: Vec<Piece<'_>> = got
+            .iter()
+            .copied()
+            .filter(|p| !matches!(p, Piece::Space(_)))
+            .collect();
+        assert_eq!(
+            words,
+            [
+                Piece::Word(b"a"),
+                Piece::Substituted(value),
+                Piece::Quoted(b"b c"),
+                Piece::Substituted(value),
+            ]
+        );
+        // And through `echo`, the only caller today: `$?` is substituted, printed once, and a
+        // quoted `$?` is not.
+        let mut out = Vec::new();
+        echo(
+            b"$? '$?'",
+            Status::Refused,
+            &mut |_| panic!("nothing here is a pattern"),
+            &mut |b| out.extend_from_slice(b),
+        );
+        assert_eq!(out, b"2 $?");
+    }
     extern crate std;
     use std::string::String;
     use std::vec::Vec;
@@ -2220,9 +2394,9 @@ mod tests {
     #[test]
     fn a_memory_grant_is_a_row_and_no_grant_is_no_row() {
         let mut e = endowment(Prog::MemoryGrantDepleter);
-        assert!(!shown(|o| write_preview(&e, o)).contains("untyped"));
+        assert!(!shown(|o| write_preview(&e, None, o)).contains("untyped"));
         e.mem_pages = 16;
-        assert!(shown(|o| write_preview(&e, o)).contains("cap 1  untyped   16 pages"));
+        assert!(shown(|o| write_preview(&e, None, o)).contains("cap 1  untyped   16 pages"));
     }
 
     #[test]
@@ -2234,12 +2408,12 @@ mod tests {
         };
         let mut e = endowment(Prog::Date);
         e.sink = line::Sink::File(grant, line::Mode::Truncate);
-        let truncate: Vec<String> = shown(|o| write_preview(&e, o))
+        let truncate: Vec<String> = shown(|o| write_preview(&e, None, o))
             .lines()
             .map(String::from)
             .collect();
         e.sink = line::Sink::File(grant, line::Mode::Append);
-        let append: Vec<String> = shown(|o| write_preview(&e, o))
+        let append: Vec<String> = shown(|o| write_preview(&e, None, o))
             .lines()
             .map(String::from)
             .collect();
@@ -2265,7 +2439,7 @@ mod tests {
             names: listing(&[b"a.txt", b"b.txt"]),
             subtree: false,
         });
-        let without = shown(|o| write_preview(&e, o));
+        let without = shown(|o| write_preview(&e, None, o));
         assert!(without.contains("a.txt b.txt"), "{without}");
         assert!(
             without.contains("no -r, so it cannot even look"),
@@ -2275,7 +2449,7 @@ mod tests {
         if let Some(g) = e.dir.as_mut() {
             g.subtree = true;
         }
-        let with = shown(|o| write_preview(&e, o));
+        let with = shown(|o| write_preview(&e, None, o));
         assert!(with.contains("-r grants the walk"), "{with}");
     }
 
@@ -2285,11 +2459,11 @@ mod tests {
         // clock is the progenitor's to endow, no token could designate it, and it is still a capability the
         // child holds. So it is printed, and it is printed as read-only, which is the whole of why
         // there is no `date -s`.
-        let s = shown(|o| write_preview(&endowment(Prog::Date), o));
+        let s = shown(|o| write_preview(&endowment(Prog::Date), None, o));
         assert!(s.contains("cap 1  frame     clock"), "{s}");
         assert!(s.contains("read the time and not set it"), "{s}");
         // And a program that declares no clock is not given a row that says it has one.
-        assert!(!shown(|o| write_preview(&endowment(Prog::Wc), o)).contains("clock"));
+        assert!(!shown(|o| write_preview(&endowment(Prog::Wc), None, o)).contains("clock"));
     }
 
     #[test]
@@ -2297,11 +2471,93 @@ mod tests {
         // `clock`'s twin: the same preview claim for the same reason. `printenv`'s config page is
         // the progenitor's to endow, no token on the line could designate it, and the preview says so before
         // anything is spawned.
-        let s = shown(|o| write_preview(&endowment(Prog::Printenv), o));
+        let s = shown(|o| write_preview(&endowment(Prog::Printenv), None, o));
         assert!(s.contains("cap 1  frame     config"), "{s}");
         assert!(s.contains("read-only"), "{s}");
         // A program that declares no config page is not given a row that says it has one.
-        assert!(!shown(|o| write_preview(&endowment(Prog::Wc), o)).contains("config"));
+        assert!(!shown(|o| write_preview(&endowment(Prog::Wc), None, o)).contains("config"));
+    }
+
+    /// A page assembled with values nobody boots with, so a test that passes cannot be reading the
+    /// boot's defaults by coincidence. `LANG` is left out, so the unset spelling is exercised too.
+    fn unusual_page() -> [u8; environment_protocol::PAGE_BYTES] {
+        environment_protocol::PageBuilder::new()
+            .tz("America/Los_Angeles")
+            .unwrap()
+            .term("xterm-256color")
+            .unwrap()
+            .build()
+    }
+
+    /// **§111's preview: the values, read from the page the child will be handed** (milestone 47).
+    /// What this proves that nothing else does: the row prints whatever the shell's view of the page
+    /// says, not a literal that happens to match the boot's defaults, and a key the page does not
+    /// carry reads the way `printenv` would print it.
+    #[test]
+    fn caps_printenv_prints_the_values_on_the_page_the_child_will_read() {
+        let bytes = unusual_page();
+        // SAFETY: `bytes` is a live buffer of exactly `PAGE_BYTES`, alive for this test.
+        let page = unsafe { ConfigPage::new(bytes.as_ptr() as u64) };
+        let s = shown(|o| write_preview(&endowment(Prog::Printenv), Some(page), o));
+        assert!(s.contains("the page this shell reads too"), "{s}");
+        assert!(s.contains("TZ=America/Los_Angeles\n"), "{s}");
+        assert!(s.contains("LANG (unset)\n"), "{s}");
+        assert!(s.contains("TERM=xterm-256color\n"), "{s}");
+        assert!(!s.contains("UTC"), "{s}");
+
+        // A program that declares no configuration is shown none, whatever the shell can read.
+        let wc = shown(|o| write_preview(&endowment(Prog::Wc), Some(page), o));
+        assert!(!wc.contains("config") && !wc.contains("TZ="), "{wc}");
+
+        // And a shell with no view says it cannot show them, rather than printing nothing and
+        // letting a reader take the absence of values for the absence of configuration.
+        let blind = shown(|o| write_preview(&endowment(Prog::Printenv), None, o));
+        assert!(blind.contains("cannot show their values"), "{blind}");
+        assert!(!blind.contains("TZ="), "{blind}");
+    }
+
+    /// The values reach a pipeline stage's preview too, which is the path `caps` takes for any line
+    /// with an operator on it: the page is threaded through [`write_caps`], not only
+    /// [`write_preview`].
+    #[test]
+    fn caps_on_a_pipeline_threads_the_page_to_the_stage_that_declares_it() {
+        let bytes = unusual_page();
+        // SAFETY: as above.
+        let page = unsafe { ConfigPage::new(bytes.as_ptr() as u64) };
+        let s = shown(|o| {
+            write_caps(
+                b"printenv | wc",
+                128,
+                Holdings::default(),
+                None,
+                Some(page),
+                &mut |_| Ok(NameSet::empty()),
+                o,
+            );
+        });
+        assert!(s.contains("TZ=America/Los_Angeles"), "{s}");
+        assert_eq!(
+            s.matches("TZ=").count(),
+            1,
+            "only printenv declares it: {s}"
+        );
+    }
+
+    /// The shell's own row: held `READ` without `GRANT` at the named slot, with the values, and no
+    /// row at all for a shell that was given no view.
+    #[test]
+    fn the_shells_config_view_is_one_row_and_it_cannot_pass_it_on() {
+        let bytes = unusual_page();
+        // SAFETY: as above.
+        let page = unsafe { ConfigPage::new(bytes.as_ptr() as u64) };
+        let with = shown(|o| write_holdings(128, Holdings::default(), None, Some(page), o));
+        assert!(
+            with.contains("cap 21 frame     config     READ only, NOT delegable"),
+            "{with}"
+        );
+        assert!(with.contains("TZ=America/Los_Angeles"), "{with}");
+        let without = shown(|o| write_holdings(128, Holdings::default(), None, None, o));
+        assert!(!without.contains("config"), "{without}");
     }
 
     #[test]
@@ -2310,7 +2566,7 @@ mod tests {
         // A process that draws a key and a process that hardcodes one look identical from outside,
         // so "does this program depend on unpredictable bytes" is a question no observation of a
         // running system answers. This row answers it before anything is spawned.
-        let s = shown(|o| write_preview(&endowment(Prog::Uuid), o));
+        let s = shown(|o| write_preview(&endowment(Prog::Uuid), None, o));
         assert!(s.contains("cap 9  endpoint  entropy"), "{s}");
         // `WRITE`, and the word is the claim rather than decoration: it is the right to `CALL` the
         // service and not the right to receive another client's request, nor to hand a random
@@ -2321,8 +2577,8 @@ mod tests {
         assert!(s.contains("draws no randomness at all"), "{s}");
         // And a program that declares no entropy is not given a row that says it has one. This is
         // the refusal, in the one place a person meets it before anything runs.
-        assert!(!shown(|o| write_preview(&endowment(Prog::Date), o)).contains("entropy"));
-        assert!(!shown(|o| write_preview(&endowment(Prog::Wc), o)).contains("entropy"));
+        assert!(!shown(|o| write_preview(&endowment(Prog::Date), None, o)).contains("entropy"));
+        assert!(!shown(|o| write_preview(&endowment(Prog::Wc), None, o)).contains("entropy"));
     }
 
     /// **A program that answers in a register gets a sentence here, or the answer is lost**
@@ -2379,7 +2635,7 @@ mod tests {
     /// positions would put the output at slot 0, where a `std` child holds its heap.
     #[test]
     fn a_std_program_previews_its_fixed_slots() {
-        let s = shown(|o| write_preview(&endowment(Prog::StdExerciser), o));
+        let s = shown(|o| write_preview(&endowment(Prog::StdExerciser), None, o));
         assert!(
             s.contains("cap 0  untyped   heap. the 384-page region"),
             "{s}"
@@ -2393,7 +2649,7 @@ mod tests {
         assert!(s.contains("cap 7  frame     config"), "{s}");
         assert!(!s.contains("cap 0  endpoint"), "{s}");
         // And a native program's rows did not move.
-        let u = shown(|o| write_preview(&endowment(Prog::Uuid), o));
+        let u = shown(|o| write_preview(&endowment(Prog::Uuid), None, o));
         assert!(
             u.contains("cap 0  endpoint  result   report its answer back"),
             "{u}"
@@ -2425,7 +2681,7 @@ mod tests {
     fn the_preview_shows_the_network_only_where_it_is_declared() {
         // What `caps` prints is what the progenitor's spawn service reads (`Manifest::network`),
         // so the row appearing for the witness would be the preview admitting an over-grant.
-        let shown_for = |p: Prog| shown(|o| write_preview(&endowment(p), o));
+        let shown_for = |p: Prog| shown(|o| write_preview(&endowment(p), None, o));
         assert!(shown_for(Prog::NetworkEchoClient).contains("cap 10 endpoint  network  WRITE"));
         for &p in Prog::ALL {
             if p != Prog::NetworkEchoClient {
@@ -2446,7 +2702,7 @@ mod tests {
             let mut e = endowment(Prog::Date);
             e.sink = sink;
             assert!(
-                shown(|o| write_preview(&e, o)).contains("    output   "),
+                shown(|o| write_preview(&e, None, o)).contains("    output   "),
                 "{sink:?} left the destination unnamed"
             );
         }
@@ -2479,7 +2735,7 @@ mod tests {
             cwd: Cwd::root(),
             binds,
         };
-        let s = shown(|o| write_holdings(128, holdings, None, o));
+        let s = shown(|o| write_holdings(128, holdings, None, None, o));
         assert!(s.contains("namespace: names bound"), "{s}");
         assert!(s.contains("bind recent -> /logs/2026"), "{s}");
 
@@ -2495,6 +2751,7 @@ mod tests {
                     cwd: Cwd::root(),
                     binds: nav::Bindings::none(),
                 },
+                None,
                 None,
                 o,
             );
@@ -2517,10 +2774,11 @@ mod tests {
                     binds: nav::Bindings::none(),
                 },
                 None,
+                None,
                 o,
             );
         });
-        let without = shown(|o| write_holdings(128, Holdings::default(), None, o));
+        let without = shown(|o| write_holdings(128, Holdings::default(), None, None, o));
         let differing = with
             .lines()
             .zip(without.lines())
@@ -2547,7 +2805,7 @@ mod tests {
             cwd,
             binds: nav::Bindings::none(),
         };
-        let s = shown(|o| write_holdings(128, holdings, None, o));
+        let s = shown(|o| write_holdings(128, holdings, None, None, o));
         assert!(s.contains("cap 4  endpoint  directory"), "{s}");
         assert!(s.contains("cap 5  endpoint  directory"), "{s}");
         assert!(s.contains("labeled 'a'"), "{s}");
@@ -2568,6 +2826,7 @@ mod tests {
                     binds: nav::Bindings::none(),
                 },
                 None,
+                None,
                 o,
             );
         });
@@ -2586,7 +2845,7 @@ mod tests {
             cwd: Cwd::root(),
             binds: nav::Bindings::none(),
         };
-        let s = shown(|o| write_holdings(128, holdings, None, o));
+        let s = shown(|o| write_holdings(128, holdings, None, None, o));
         assert!(s.contains("* b  /"), "{s}");
         assert!(s.contains("  a  /\n"), "{s}");
     }
@@ -2600,18 +2859,18 @@ mod tests {
     /// a table that printed only the object would have lost it.
     #[test]
     fn a_clock_is_one_row_and_it_says_the_shell_cannot_pass_it_on() {
-        let with = shown(|o| write_holdings(128, Holdings::default(), Some(5), o));
+        let with = shown(|o| write_holdings(128, Holdings::default(), Some(5), None, o));
         assert!(with.contains("cap 5  frame     clock"), "{with}");
         assert!(with.contains("NOT delegable"), "{with}");
 
         // The slot is the caller's to state rather than a constant here, because it moves with the
         // wiring: a shell granted no directory has one fewer capability under it.
-        let lower = shown(|o| write_holdings(128, Holdings::default(), Some(4), o));
+        let lower = shown(|o| write_holdings(128, Holdings::default(), Some(4), None, o));
         assert!(lower.contains("cap 4  frame     clock"), "{lower}");
 
         // And a shell granted none says what is missing and what it costs, rather than leaving a
         // reader to wonder why `time` refuses.
-        let without = shown(|o| write_holdings(128, Holdings::default(), None, o));
+        let without = shown(|o| write_holdings(128, Holdings::default(), None, None, o));
         assert!(without.contains("was\n     granted none"), "{without}");
         assert!(without.contains("nothing to measure with"), "{without}");
     }
@@ -2626,11 +2885,12 @@ mod tests {
                 128,
                 Holdings::default(),
                 None,
+                None,
                 &mut |_| Ok(NameSet::empty()),
                 o,
             );
         });
-        let direct = shown(|o| write_holdings(128, Holdings::default(), None, o));
+        let direct = shown(|o| write_holdings(128, Holdings::default(), None, None, o));
         assert_eq!(tail, direct);
     }
 
@@ -2641,6 +2901,7 @@ mod tests {
                 b"date | wc",
                 128,
                 Holdings::default(),
+                None,
                 None,
                 &mut |_| Ok(NameSet::empty()),
                 o,
@@ -2696,6 +2957,7 @@ mod tests {
                     128,
                     holdings,
                     None,
+                    None,
                     &mut |_| Ok(NameSet::empty()),
                     o,
                 );
@@ -2729,6 +2991,7 @@ mod tests {
                 128,
                 Holdings::default(),
                 None,
+                None,
                 &mut |_| Ok(NameSet::empty()),
                 o,
             );
@@ -2747,6 +3010,7 @@ mod tests {
                 128,
                 Holdings::default(),
                 None,
+                None,
                 &mut |_| Ok(NameSet::empty()),
                 o,
             );
@@ -2762,6 +3026,7 @@ mod tests {
                 b"help",
                 128,
                 Holdings::default(),
+                None,
                 None,
                 &mut |_| Ok(NameSet::empty()),
                 o,
@@ -2785,6 +3050,7 @@ mod tests {
                     128,
                     Holdings::default(),
                     Some(5),
+                    None,
                     &mut |_| Ok(NameSet::empty()),
                     o,
                 );
@@ -2933,7 +3199,7 @@ mod tests {
             },
             line::Mode::Truncate,
         );
-        let s = shown(|o| write_preview(&e, o));
+        let s = shown(|o| write_preview(&e, None, o));
         assert!(s.contains("    output   when.txt"), "{s}");
         assert!(
             // And the row says the destination is **not** this shell, which is what the terminal's
@@ -2945,7 +3211,7 @@ mod tests {
 
         // And a program that declares none has no row at all: there is no second stream to hide,
         // so inventing a line about one would be the preview claiming more than the manifest does.
-        let s = shown(|o| write_preview(&endowment(Prog::Wc), o));
+        let s = shown(|o| write_preview(&endowment(Prog::Wc), None, o));
         assert!(!s.contains("diags"), "{s}");
     }
 
@@ -2963,6 +3229,7 @@ mod tests {
                     cwd: Cwd::root(),
                     binds: nav::Bindings::none(),
                 },
+                None,
                 None,
                 &mut |_| Ok(NameSet::empty()),
                 o,
