@@ -41,7 +41,7 @@ use crate::sched::RendezvousId;
 /// Where the driver maps the UART's registers. **Must match `components/src/input.rs`'s `UART_VA`**, and
 /// it is the same address `crates/system_initializer`'s `IN_UART_VA` maps it at on a plain boot,
 /// for the same reason: it is the wiring's fact, agreed between the two sides.
-const IN_UART_VA: u64 = 0x0000_0000_00a0_0000;
+const IN_UART_VA: u64 = address_space_map::pair_page(0x0000_0000_00a0_0000);
 
 /// **Wire and spawn the UART receive driver against a fixed target.**
 ///
