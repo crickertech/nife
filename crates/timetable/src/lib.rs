@@ -84,6 +84,9 @@
 use grant_plan::expand::Expansion;
 use grant_plan::{Endowment, Holdings, Refusal};
 
+pub mod contract;
+pub mod registration;
+
 /// Nanoseconds in a second. Spelled here rather than taken from `clock_protocol`, because this crate
 /// decides *when* rather than *what time it is*: it never touches the wall clock, and depending on
 /// the wall-clock contract to name a unit would claim otherwise.
@@ -368,29 +371,16 @@ pub const SHIPPED_HELD: Held = Held {
 ///
 /// # BUGS
 ///
-/// **[`Admission::Unbacked`] never carries [`Unbacked::File`] or [`Unbacked::Directory`]**, so a
-/// designation this scheduler cannot back arrives as an [`Admission::Refused`] carrying
-/// `Refusal::NoSuchCapability` instead. The cause is one line in `admit`: it hands
-/// `grant_plan::plan` the scheduler's own `dir` holding, so a plan that would need a directory the
-/// scheduler lacks is refused during planning and never reaches the check that would have named it
-/// as unbacked. Both variants exist, both have their own sentence, and both are reachable by
-/// calling `unbacked` directly, which
-/// `a_designation_is_backed_by_the_directory_the_scheduler_holds` does.
-///
-/// The visible cost is which of two true sentences a reader meets, not a wrong answer: the refusal
-/// this path produces also says the capability is missing. The cost that is not visible is that the
-/// [`Refusal`]/`Unbacked` split above promises "edit the line" against "grant the scheduler
-/// something", and a `rm -r logs` line in a timetable that holds no directory is the second while
-/// being reported as the first.
-///
-/// **[`Unbacked::File`] has a second reason it cannot arrive**: no shipped program declares a
-/// `FileSpec::Required`, so `Endowment::file` is `None` for every plan this crate can build.
+/// **[`Unbacked::File`] is reached only through a streamed operand** (`wc report.txt`), never
+/// through `Endowment::file`, because no shipped program declares a `FileSpec::Required`.
 /// `grant_plan` keeps that branch live with a fixture of its own rather than a program.
 ///
-/// Found by milestone 326 on 2026-09-19, from two mutants that deleted the `!` in `unbacked`'s
-/// `!held.dir` tests and survived the whole suite. Whether `admit` should stop pre-consuming the
-/// holding, so the designation arms can be reached, is a behaviour change rather than a test, and
-/// it is left recorded here rather than made.
+/// Fixed 2026-09-26 by milestone 129 (scheduled execution): `admit` used to plan against the scheduler's own `dir`, so a
+/// designation this scheduler could not back was refused during planning and arrived as
+/// [`Admission::Refused`] carrying `Refusal::NoSuchCapability`, telling a reader to edit a line
+/// that had nothing wrong with it. Milestone 326 (turn a mutation score upward) found it on 2026-09-19 from two mutants that
+/// deleted the `!` in `unbacked`'s `!held.dir` tests and survived the whole suite. The planner is
+/// now lent a directory unconditionally and `unbacked` alone answers whether one is held.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Unbacked {
     /// The entry designates a file, and this scheduler holds no directory to narrow.
@@ -601,6 +591,41 @@ impl<'a> Registry<'a> {
         }
     }
 
+    /// **Arm this registry as the replacement for `old`**, which is the third sub-ruling of §222 (who holds a user's schedule): an
+    /// entry whose text is byte-identical to one in force keeps that entry's beat, and every other
+    /// admitted entry arms fresh against `now`, exactly as [`arm`](Registry::arm) would.
+    ///
+    /// Byte-identical means the schedule and the command both match. An `at-boot` entry that has
+    /// already fired therefore stays fired: resending a document is not a reboot. Duplicates pair
+    /// off in document order, each old row lending its beat at most once, so a document that adds
+    /// a second copy of a line gets one kept beat and one fresh one.
+    ///
+    /// Returns a mask, bit `i` set when entry `i` kept its beat. The rows it pairs are both
+    /// admitted; a line that was refused before and is admitted now has no beat to keep.
+    pub fn arm_after(&mut self, old: &Registry<'_>, now: u64) -> u8 {
+        self.arm(now);
+        let mut lent = 0u8;
+        let mut kept = 0u8;
+        for i in 0..self.n {
+            if self.rows[i].endowment().is_none() {
+                continue;
+            }
+            let mine = self.rows[i].entry;
+            for (j, theirs) in old.rows().iter().enumerate() {
+                if lent & (1 << j) != 0 || theirs.endowment().is_none() {
+                    continue;
+                }
+                if theirs.entry.schedule == mine.schedule && theirs.entry.command == mine.command {
+                    self.rows[i].next = theirs.next;
+                    lent |= 1 << j;
+                    kept |= 1 << i;
+                    break;
+                }
+            }
+        }
+        kept
+    }
+
     /// **Take one row that is due at `now`, advancing it past `now`.** `None` when nothing is due.
     ///
     /// Call it in a loop until it answers `None`: several entries can come due in one pass, and
@@ -642,13 +667,20 @@ impl<'a> Registry<'a> {
 /// Plan one entry's command against its program's manifest and against what the scheduler holds.
 fn admit(command: &[u8], held: Held) -> Admission {
     let spec = grant_plan::parse_run(command);
-    // `Holdings::default()` is a shell that holds no directory and stands at its root, which is
-    // exactly this scheduler when `held.dir` is false. When it is true the position is still the
-    // root, because a scheduler has no `cd`: there is no prompt to have typed one at, and a
-    // working directory that could move between registration and a fire would make an already
-    // planned grant mean something different later.
+    // **The plan is made as if this scheduler held a directory, whether or not it does**, and
+    // `unbacked` below is what answers whether it really does. Planning against `held.dir` instead
+    // made `grant_plan` refuse a designation (`rm -r logs`, `wc report.txt`) during planning, so a
+    // line with nothing wrong with it came back as a `Refused` ("edit the line") when the truth was
+    // an `Unbacked` ("grant the scheduler a directory"), and `Unbacked::File`/`Directory` could not
+    // arrive at all. Milestone 326's mutation run found that on 2026-09-19; milestone 129 closed it
+    // on 2026-09-26. A line that is wrong for any other reason is still refused here, because the
+    // directory is the only holding this lends the planner.
+    //
+    // The position is the root, because a scheduler has no `cd`: there is no prompt to have typed
+    // one at, and a working directory that could move between registration and a fire would make
+    // an already planned grant mean something different later.
     let holdings = Holdings {
-        dir: held.dir,
+        dir: true,
         ..Holdings::default()
     };
     match grant_plan::plan(&spec, holdings, Expansion::none()) {
@@ -668,7 +700,15 @@ fn admit(command: &[u8], held: Held) -> Admission {
 /// fix is at the scheduler's spawn site. A reader who gets `Clock` back knows not to go looking for
 /// a typo.
 fn unbacked(e: &Endowment, held: Held) -> Option<Unbacked> {
-    if e.file.is_some() && !held.dir {
+    // A file reaches a program by four routes: the manifest's own per-file grant, an operand
+    // streamed in by an adapter (`wc report.txt`), a redirected output and a redirected second
+    // stream. Each is narrowed from a directory, so each is unbacked in a scheduler that holds
+    // none. (`plan` passes no operators today, so the last two cannot arrive; they are checked
+    // anyway so that teaching the timetable `>` cannot quietly admit a grant it cannot back.)
+    let streams_a_file = matches!(e.source, grant_plan::line::Source::File(_))
+        || matches!(e.sink, grant_plan::line::Sink::File(..))
+        || matches!(e.diagnostics, grant_plan::line::Diagnostics::File(..));
+    if (e.file.is_some() || streams_a_file) && !held.dir {
         return Some(Unbacked::File);
     }
     if e.dir.is_some() && !held.dir {
@@ -1354,18 +1394,18 @@ mod tests {
     }
 
     /// **What a designation costs when the scheduler holds a directory, and what it costs when it
-    /// does not.** `admit` hands `grant_plan::plan` the scheduler's own `dir` holding, and nothing
-    /// tested that it hands over the real one: the 2026-09-19 mutation run deleted the field from
-    /// the `Holdings` expression, falling back to the default `false`, and no test noticed. A
-    /// timetable that holds a directory and reports every `rm` line as unbackable is a scheduler
-    /// that has forgotten what it was given.
+    /// does not.** `admit` lends `grant_plan::plan` a directory, and until the 2026-09-19 mutation
+    /// run nothing tested that it does: that run deleted the field from the `Holdings` expression,
+    /// falling back to the default `false`, and no test noticed. A timetable that holds a directory
+    /// and reports every `rm` line as unbackable is a scheduler that has forgotten what it was
+    /// given.
     ///
-    /// The two `!held.dir` tests in `unbacked` are called here directly, and that is deliberate
-    /// rather than convenient: see this crate's `BUGS`, which records that `admit` cannot reach
-    /// either of them, because the `dir` it passes to `plan` is the same bit `unbacked` then
-    /// re-tests. The mutants that deleted both `!`s survived on exactly that. `e.file` has no route
-    /// in at all, since no shipped program declares a `FileSpec::Required`, so the grant below is
-    /// lifted off a real `wc` plan rather than forged.
+    /// The two `!held.dir` tests in `unbacked` are also called here directly. Until 2026-09-26
+    /// `admit` could not reach either, because the `dir` it passed to `plan` was the same bit
+    /// `unbacked` then re-tested, and the mutants that deleted both `!`s survived on exactly that;
+    /// `a_designation_the_scheduler_cannot_back_is_unbacked_rather_than_refused` now reaches them
+    /// through `register`. `e.file` has no route in at all, since no shipped program declares a
+    /// `FileSpec::Required`, so the grant below is lifted off a real `wc` plan rather than forged.
     #[test]
     fn a_designation_is_backed_by_the_directory_the_scheduler_holds() {
         let doc = parse("every 5s rm -r logs\nevery 5s wc report.txt\n").unwrap();
@@ -1393,6 +1433,154 @@ mod tests {
         e.file = Some(f);
         assert_eq!(unbacked(&e, with_dir), None);
         assert_eq!(unbacked(&e, Held::default()), Some(Unbacked::File));
+    }
+
+    /// **§222's third sub-ruling: a byte-identical entry keeps its beat, and nothing else does.**
+    /// Four cases in one document pair, because each is the negative control for another: the
+    /// kept interval proves carrying happens, the edited one proves it is by text rather than by
+    /// position, the fired `at-boot` line proves a resend is not a reboot, and the duplicate proves
+    /// one old beat is lent once.
+    #[test]
+    fn a_replacement_keeps_the_beat_of_every_line_it_did_not_change() {
+        let old_doc = parse(
+            "every 10s least_authority_demo 7\n\
+             every 10s least_authority_demo 5\n\
+             at-boot least_authority_demo 3\n",
+        )
+        .unwrap();
+        let mut old = Registry::register(&old_doc, Held::default());
+        old.arm(1_000);
+        // The at-boot row fires; the intervals are due at 10_001_000 and have not come round.
+        assert_eq!(old.due(1_000), Some(2));
+        assert_eq!(old.due(1_000), None);
+
+        let new_doc = parse(
+            "at-boot least_authority_demo 3\n\
+             every 10s least_authority_demo 7\n\
+             every 10s least_authority_demo 7\n\
+             every 20s least_authority_demo 5\n",
+        )
+        .unwrap();
+        let mut new = Registry::register(&new_doc, Held::default());
+        let kept = new.arm_after(&old, 5_000_000_000);
+
+        assert_eq!(
+            kept, 0b0011,
+            "the at-boot line and the first copy of the heartbeat kept"
+        );
+        assert_eq!(
+            new.rows()[0].next_fire(),
+            None,
+            "an at-boot line that fired stays fired"
+        );
+        assert_eq!(
+            new.rows()[1].next_fire(),
+            Some(10_000_001_000),
+            "the old beat, not a new one"
+        );
+        assert_eq!(
+            new.rows()[2].next_fire(),
+            Some(15_000_000_000),
+            "a duplicate arms fresh: one old beat is lent once",
+        );
+        assert_eq!(
+            new.rows()[3].next_fire(),
+            Some(25_000_000_000),
+            "an edited interval is a new line, whatever position it holds",
+        );
+    }
+
+    /// A line refused before has no beat to lend, even if the replacement admits the same text.
+    #[test]
+    fn a_line_that_was_not_armed_lends_no_beat() {
+        let doc = parse("every 10s memory_grant_depleter --mem 4\n").unwrap();
+        let mut old = Registry::register(&doc, Held::default());
+        old.arm(0);
+        assert!(
+            old.rows()[0].next_fire().is_none(),
+            "unbacked in a timetable holding no memory"
+        );
+        let mut new = Registry::register(
+            &doc,
+            Held {
+                mem_pages: 4,
+                ..Held::default()
+            },
+        );
+        assert_eq!(new.arm_after(&old, 7), 0);
+        assert_eq!(new.rows()[0].next_fire(), Some(10_000_000_007));
+    }
+
+    /// **The verdict word a registrar reads back**, and the request word it writes. Kind in the
+    /// low two bits, the missing authority above it, the kept beat in bit 7.
+    #[test]
+    fn the_verdict_word_says_what_each_entry_became() {
+        use registration::*;
+        let doc = parse(
+            "every 1s least_authority_demo 7\n\
+             every 1s memory_grant_depleter\n\
+             every 1s date\n",
+        )
+        .unwrap();
+        let reg = Registry::register(&doc, Held::default());
+        let word = verdicts(&reg, 0b001);
+        assert_eq!(verdict_of(word, 0), KIND_FIRES | KEPT_PHASE);
+        assert_eq!(verdict_of(word, 1), KIND_REFUSED);
+        assert_eq!(
+            verdict_of(word, 2),
+            KIND_UNBACKED | (unbacked_code(Unbacked::Clock) << 2)
+        );
+        assert_eq!(verdict_of(word, 3), KIND_NONE, "no entry at index 3");
+
+        let r = request(REPLACE, 41);
+        assert_eq!((operation(r), sequence(r)), (REPLACE, 41));
+
+        let mut page = [0u8; PAGE_BYTES];
+        stage(&mut page, b"at-boot least_authority_demo 3\n").unwrap();
+        assert_eq!(
+            u64::from_le_bytes(page[LEN..LEN + 8].try_into().unwrap()),
+            31
+        );
+        assert_eq!(&page[BODY..BODY + 31], b"at-boot least_authority_demo 3\n");
+        assert!(
+            stage(&mut page, &[b'#'; BODY_MAX + 1]).is_none(),
+            "a document past the page"
+        );
+        assert!(
+            stage(&mut page, &[b'#'; BODY_MAX]).is_some(),
+            "and one that exactly fills it"
+        );
+    }
+
+    /// **A designation in a scheduler holding no directory is the scheduler's fault, not the
+    /// line's.** Until 2026-09-26 `admit` planned against the scheduler's own `dir`, so these two
+    /// lines came back `Refused(NoSuchCapability)`, which tells a reader to edit a line that has
+    /// nothing wrong with it; milestone 326's mutation run found the arms unreachable. The negative
+    /// control is the third line: a line that is wrong for its own reasons is still refused even
+    /// though the planner is lent a directory.
+    #[test]
+    fn a_designation_the_scheduler_cannot_back_is_unbacked_rather_than_refused() {
+        let doc = parse(
+            "every 5s rm -r logs\n\
+             every 5s wc report.txt\n\
+             every 5s memory_grant_depleter\n",
+        )
+        .unwrap();
+        let bare = Registry::register(&doc, Held::default());
+        assert_eq!(
+            bare.rows()[0].admission,
+            Admission::Unbacked(Unbacked::Directory)
+        );
+        assert_eq!(
+            bare.rows()[1].admission,
+            Admission::Unbacked(Unbacked::File)
+        );
+        assert!(
+            matches!(bare.rows()[2].admission, Admission::Refused(_)),
+            "a line missing its own `--mem` is the line's fault in any scheduler: {:?}",
+            bare.rows()[2].admission
+        );
+        assert_eq!(bare.admitted(), 0, "and nothing unbacked is armed");
     }
 
     /// **The plan's rendering, in the units and the widths a reader meets.** The test below prints

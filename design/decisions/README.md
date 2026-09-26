@@ -330,6 +330,7 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 218 | DECIDED | [Carry a Kani patch so riscv64 is proved, and send it upstream](218-carry-a-kani-patch-so-riscv64-is-proved.md) |
 | 219 | DECIDED | [How the shell names an installed program to the spawner](219-naming-an-installed-program-to-the-spawner.md) |
 | 220 | DECIDED | [Signed builds: a vendor signs, a developer self-signs, and trusting a key is scoped](220-signed-builds-and-scoped-key-trust.md) |
+| 222 | DECIDED | [Who holds a user's schedule, and how it is changed while their session lives](222-who-holds-a-users-schedule.md) |
 
 Two blocks that lived among the decisions are not decisions and moved out with the split, the same
 way milestone 76 moved four essays out of the roadmap: [the open design
