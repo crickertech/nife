@@ -258,25 +258,29 @@ for &(va, slot, mode) in plan.devices() {
 
 ## BUGS
 
-**A manifest is compiled in, not shipped in the archive beside the build.** This is the honest limit
+**A manifest is compiled in, not shipped with the build.** This is the honest limit
 of what landed, and it is the difference between "the endowment is no longer in the operator" and "a
 vendor hands over a binary and the system reads its needs out of it". The second needs a format two
 programs agree on, which is AGENTS.md's expensive, irreversible category, so a lane does not decide
 it. The two candidate shapes, recorded so the decision is a choice rather than a discovery:
 
-- **An ELF section or note in the component's own binary.** One artifact, and the manifest cannot be
-  separated from the thing it describes. The cost is real: `crates/elf` parses **program headers
-  only** and is a Kani-proven, hostile-input-hardened parser on the boot path. Teaching it section
-  headers or notes means extending exactly the parser this tree is most careful about, and the format
-  becomes something every future component agrees on.
-- **An archive member beside the image**, `rust_swappable.manifest` in the initrd, which is Fuchsia's
-  `.cm`. Cheaper (no ELF change; `nifefs` already reads members by name) and weaker, because the two
-  can be separated: a supervisor can be handed a binary with somebody else's manifest.
+- An ELF section or note in the component's own binary. One artifact, and the manifest cannot be
+  separated from the thing it describes.
+- An archive member beside the image, `rust_swappable.manifest` in the initrd, which is Fuchsia's
+  `.cm`. The two can be separated: a supervisor can be handed a binary with somebody else's manifest.
 
-Neither is needed for anything on the customer path today. Both are a wire format, and the
-recommendation in the lane's report is to decide it when a second supervisor or an out-of-tree
-component actually exists, because until then the parsed format would be a format with one producer
-and one consumer that are compiled together.
+calef ruled on 2026-09-26 (UTC): *"M2 is right."* The manifest travels inside the executable, as an
+ELF note found through a `PT_NOTE` program header. DECISIONS §197 (a package is one archive file)
+has the ruling, and draft pull request #1319 has the evidence. This entry stays until the build
+lands, because a manifest is still compiled in. The note's owner string, type number and encoding
+are still an architect's, and the build is
+`design/roadmap/proposals/a-program-carries-its-manifest-in-an-elf-note.md`.
+
+Correction, 2026-09-26. This entry used to say the note option meant teaching `crates/elf` "section
+headers or notes", which would extend the parser this tree is most careful about. That joined two
+mechanisms. A `PT_NOTE` is a program header, in the table the crate already walks, so the crate
+stays program-headers-only; #1319 measured the reader at 113 lines, off the kernel's path. The
+premise was the reason this entry called the note option costly and the member cheaper.
 
 **`Requirements::pages` is a property of the build, not of the contract**, and it is the only field
 here that is. How many pages an instance needs depends on its image size, its stack and its page

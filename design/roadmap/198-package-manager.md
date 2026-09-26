@@ -163,7 +163,7 @@ One line each, in the form calef would answer, with the rung that waits on it.
 
 | Ruling | The question | Rung it blocks | Where the options are |
 |---|---|---|---|
-| ~~**Format**~~ | **Decided 2026-09-20. DECISIONS §197 (a package is one archive file) rules one archive file per package**, identified by name and version, with the reviewed recipe of §195 (a reviewed recipe vouches for a package) carrying its digest. Where the manifest travels and whether the digest is a Merkle root are still calef's, narrowed by the ruling. | 3a | [DECISIONS §197](../decisions/197-a-package-is-one-archive-file.md) |
+| ~~**Format**~~ | **Decided 2026-09-20. DECISIONS §197 (a package is one archive file) rules one archive file per package**, identified by name and version, with the reviewed recipe of §195 (a reviewed recipe vouches for a package) carrying its digest. The manifest travels in an ELF note (ruled 2026-09-26); whether the digest is a Merkle root is still calef's. | 3a | [DECISIONS §197](../decisions/197-a-package-is-one-archive-file.md) |
 | ~~**Activation**~~ | **Decided 2026-09-23 (DECISIONS §208): A3 with rollback.** Installing records that a package exists (digest and manifest spawnable, data a read-only directory a session binds by name), nothing is written into shared space, and the table of entries is versioned so a set rolls back whole. | 3a's **consumer** half | [DECISIONS §208](../decisions/208-installing-is-granting.md), from [milestone 507](507-installing-a-package-mutates-or-composes.md) |
 | ~~**Trust**~~ | **Decided 2026-09-19 (DECISIONS §195): a reviewed recipe vouches, trust is scoped per source the owner opted into, and the owner may overrule.** No long-lived signing key is held for now; a per-source signature can be added later without changing that. | 3a | [DECISIONS §195](../decisions/195-a-recipe-vouches-and-the-owner-may-overrule.md) |
 | **Install layout** (new) | Is an installed disk an EFI system partition plus a data partition, the same with two boot slots, or a small loader plus a raw system partition? | 2a's merge (a lane can build under a provisional layout; nothing leaves the machine until 4) | the installer proposal |
@@ -236,9 +236,9 @@ calef's acts are named there rather than here.
   (`design/roadmap/proposals/a-virtio-slot-comes-back-when-its-driver-dies.md`). The booted system
   had no network either; milestone 590 (the booted system starts its network stack) built it.
 - **Done.** Every archive build runs `cargo xtask package` end to end since 2026-09-24.
-- **Decision.** Where a program's manifest travels, and whether the digest is a Merkle root, are
-  both still calef's and both left open rather than answered by the built format:
-  `design/decisions/197-a-package-is-one-archive-file.md`.
+- **Decision.** Whether the digest is a Merkle root is still calef's:
+  `design/decisions/197-a-package-is-one-archive-file.md`, which also records the manifest ruling
+  (an ELF note, 2026-09-26) and links the proposal for its build.
 - **Recorded.** No compression, a `u32` ceiling on a member and on a package, a catalogue that is
   one file in `target/` rather than a repository index, a fetch only in the test harness, and a recipe that cannot say where its
   source came from (`crates/package_archive`'s and `xtask/src/package.rs`'s BUGS sections, and
@@ -251,9 +251,8 @@ calef's acts are named there rather than here.
 - This block prices nothing. A package manager is a large piece of work and the estimate is not
   attempted; the sequencing claim is that it gates a customer, not that it is cheap.
 - The package encoding is provisional, and so is `package_archive`'s name. §197 ruled the
-  container, not the byte offsets, and two of its own open questions are left open by the built
-  format rather than answered: where a program's manifest travels (a sibling member is possible and
-  nothing requires one) and whether the digest is a Merkle root (the built format takes the plain
+  container, not the byte offsets. Its manifest question was ruled 2026-09-26 (an ELF note, not a
+  member), and whether the digest is a Merkle root is left open (the built format takes the plain
   SHA-256 §197 records as the default). Reversible only until somebody outside this repository
   fetches a package, which §197 says fixes the format.
 - The two Kani harnesses prove less than their names suggest. They cover a 272-byte file, which

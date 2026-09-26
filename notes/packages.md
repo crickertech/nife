@@ -43,10 +43,9 @@ repeating here because a reader comparing this against `.hpkg` will ask about th
   wrong later is to hand a parser an odd address.
 
 **The encoding is provisional and the crate's name is provisional.** §197 ruled the container, not
-these offsets, and two of its own open questions are deliberately left open here: where a program's
-manifest travels (this layout makes a sibling member *possible*, because a member is any named
-bytes, and requires nothing) and whether the digest is a Merkle root (this takes the plain SHA-256
-§197 records as the default). §197 says the day somebody outside this repository fetches a package
+these offsets. Its manifest question was ruled 2026-09-26: an ELF note inside the executable, not
+a member. Whether the digest is a Merkle root is still open; this takes the plain SHA-256 §197
+records as the default. §197 says the day somebody outside this repository fetches a package
 is the day the format is fixed; nobody has.
 
 ## The producer
@@ -159,7 +158,7 @@ option D, the executable's bytes as frames the caller owns, with gate D2. It is 
 
 A command word with a `/` in it is a file. The shell binds the line against
 `grant_plan::INSTALLED_MANIFEST_OF`, which is `uptime`'s manifest and the ceiling every installed
-program gets until §197 (a package is one archive file) says where a manifest travels. It opens the
+program gets until its manifest is read from its ELF note (§197, ruled 2026-09-26). It opens the
 file and sends `spawnproto::request(len, ..)` with `IMAGE_BIT` set: word 0 is the byte length, then
 one `SEND_CAP` per page narrowed to `READ`, then the grants as today, holding one frame at a time.
 
