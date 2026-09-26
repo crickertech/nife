@@ -7,6 +7,9 @@ ratified_by: calef
 
 # 144. The fastpath footprint gate gets a delta and a ceiling, and the ceiling is 16 KiB
 
+*Amended 2026-09-26: rule text says "an architect" where it said calef, per §217 (every architect
+holds the whole role). Records and quotations keep his name.*
+
 calef, 2026-09-04, after three failures of the stored-baseline design in three
 days. *(Number provisional until the merge queue lands it.)*
 
@@ -24,7 +27,7 @@ catch different failures.**
 to re-record. This replaces the baseline files.
 
 **Plus an absolute ceiling of 16 KiB**, per architecture, on `script/fastpath-footprint`'s `total`.
-Only calef raises it.
+Only an architect raises it.
 
 **Amended 2026-09-04, the same day, because milestone 188 moved both terms this sentence named.** It
 read "on the sum of `ipc_fastpath` and `syscall_entry`", and phases 1 to 3 of milestone 188 (the IPC

@@ -7,6 +7,9 @@ ratified_by: calef
 
 # 210. A correction of error, and its action items are decisions, proposals or milestones
 
+*Amended 2026-09-26: rule text says "an architect" where it said calef, per §217 (every architect
+holds the whole role). Records and quotations keep his name.*
+
 calef, 2026-09-23: this tree runs corrections of error, and **an action item
 is a decision, a proposal, or a milestone. Nothing else counts.** *(Section number provisional until
 the merge queue lands it: two other decision files, numbered 208 and 209, are open on
@@ -111,7 +114,7 @@ item is `notes/corrections.md` with a timeline stapled on.
 
 ## The mechanism, which is what makes this checkable
 
-*(Proposed, not decided. The design is this lane's; calef rules on it.)*
+*(Proposed, not decided. The design is this lane's; an architect rules on it.)*
 
 **A COE's action items use the same disposition vocabulary that `## Follow-on` rows already use.**
 `script/roadmap --check` carries that vocabulary and already validates it. The openers are
@@ -208,7 +211,7 @@ files awaiting triage today and nothing schedules that triage.
 This is named as unsolved rather than answered. Inventing a weekly ritual that one person would be
 responsible for running is rung four wearing a process's clothes, and this tree has enough of those.
 The honest position is that the trigger and the gate are worth having without it, and that the
-follow-through remains calef's attention until somebody proposes something better.
+follow-through remains an architect's attention until somebody proposes something better.
 
 ## What happens to `notes/corrections.md`
 

@@ -7,6 +7,9 @@ ratified_by: calef
 
 # 209. State handoff is an opaque blob over a granted frame, and it is optional
 
+*Amended 2026-09-26: rule text says "an architect" where it said calef, per §217 (every architect
+holds the whole role). Records and quotations keep his name.*
+
 Ruled by calef on 2026-09-23, on the maintainer's recommendation, reopening
 §116 (live component state handoff is declined, for want of a customer). *(Section number provisional until the merge queue lands it. A second
 lane has already minted a different 209 on an unmerged branch, so expect renumbering.)*
@@ -84,12 +87,12 @@ Four existing cases, one shape. A fifth that carries a component's own state is 
 with different bytes in it, which is the strongest thing that can be said for a transport: nobody
 has to learn it.
 
-## What remains calef's
+## What remains an architect's
 
-**The manifest field's name.** Names are his, and this decision does not take one. A lane
+**The manifest field's name.** Names are an architect's, and this decision does not take one. A lane
 implementing this ships **`handoff`** as a **provisional** name on `component_plan`'s requirements,
 beside `depends_on`, and says so in its report. Do not ratify it here. `script/names --unratified`
-is where it belongs until he rules.
+is where it belongs until an architect rules.
 
 Nothing else in this section is a naming decision: `Frame`, `GRANT` and the manifest itself are
 existing ratified names being used rather than coined.

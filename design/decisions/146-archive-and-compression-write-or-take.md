@@ -5,6 +5,9 @@ raised: 2026-09-05
 
 # 146. Archive and compression: which pieces we write, which we take, and which we refuse
 
+*Amended 2026-09-26: rule text says "an architect" where it said calef, per §217 (every architect
+holds the whole role). Records and quotations keep his name.*
+
 Raised by calef, 2026-09-05, on being told no milestone covered archive
 utilities: *"Mint it. However we should debate write it and vendor it for each piece."*
 *(Section number provisional until the merge queue lands it.)*
@@ -13,7 +16,7 @@ utilities: *"Mint it. However we should debate write it and vendor it for each p
 §46's test is already written and this section's job is to run it honestly on seven candidates and
 show the working, including where the answer is genuinely arguable rather than obvious.
 
-**Taking a dependency is calef's call**, which is why this is a decision file and not a lane's
+**Taking a dependency is an architect's call**, which is why this is a decision file and not a lane's
 choice.
 
 ## §46's test, restated so the reasoning below can be checked against it

@@ -7,6 +7,9 @@ ratified_by: calef
 
 # 211. What a fatal-risk verdict says, and what the chart can plot as a result
 
+*Amended 2026-09-26: rule text says "an architect" where it said calef, per §217 (every architect
+holds the whole role). Records and quotations keep his name.*
+
 The field is **Experiment status**, with values
 **RUN**, **NOT-RUN**, **CANNOT-RUN**. Raised by calef, 2026-09-23, reading
 `notes/project-metrics/fatal-risks.svg`: it seems like the wrong graph, because it plots tested
@@ -240,7 +243,7 @@ The place cost *does* decide something, said plainly: **the history question**. 
 the ruling date rather than re-deriving it backwards is an argument from effort, and it is recorded
 as one.
 
-## What is calef's
+## What is an architect's
 
 **The words.** `run`, `not run`, `cannot run yet`, `looks real`, `looks false`, `inconclusive` are
 provisional and are a naming decision under `AGENTS.md`, whichever shape wins. They are also
@@ -250,7 +253,7 @@ should stop, and the one-word alternative's whole argument is that a reader reme
 **The shape**, because two agents already disagreed about it implicitly by minting three words in a
 day, and because a chart published from it is a fact that leaves the machine.
 
-**And a smaller one that is still his**: whether `MEASURED` and `AUDITED` survive as anything. They
+**And a smaller one that is still an architect's**: whether `MEASURED` and `AUDITED` survive as anything. They
 are real distinctions that three entries currently carry, and the proposal drops them.
 
 ## What is blocked until this is answered

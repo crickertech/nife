@@ -7,6 +7,9 @@ ratified_by: calef
 
 # 140. The words a finished milestone may use to say what happened to the work it named
 
+*Amended 2026-09-26: rule text says "an architect" where it said calef, per §217 (every architect
+holds the whole role). Records and quotations keep his name.*
+
 Ratified 2026-09-03 by calef, who took the vocabulary as it stands: *"Ratify proposed."* The seven words are the gate's, and `Proposed.` is the one he was asked about. *(Number provisional. Section numbers are the integrator's at merge, per
 AGENTS.md, and this one was written by the milestone 247 lane.)*
 
@@ -16,7 +19,7 @@ Milestone 247 built a gate: every `BUILT` or `REMOVED` roadmap block now carries
 section saying what became of the work it named on its way out, and `script/roadmap --check` fails a
 block that does not. **The mechanism is not in question here.** What is in question is the seven
 words a bullet may open with, because a vocabulary is a thing readers learn and a thing every future
-block is written against, and this tree already treats status vocabulary as calef's: he minted
+block is written against, and this tree treats status vocabulary as an architect's: calef minted
 `REMOVED` himself on 2026-08-30 when the six words then available could only lie about milestone 54.
 
 The words, as shipped:
@@ -28,7 +31,7 @@ The words, as shipped:
 | `Done.` | Done, and not as a milestone | Prose saying what carried it |
 | `Recorded.` | A limitation, and it stays one | Prose; any path it cites must exist |
 | `Refused.` | Considered, deliberately not taken | Prose giving the reason |
-| `Decision.` | calef's call, written up as one | A file under `design/decisions/` |
+| `Decision.` | An architect's call, written up as one | A file under `design/decisions/` |
 | `Proposed.` | Named, nobody took it, so it is a proposal now | A file under `design/roadmap/proposals/` |
 
 ## What else was considered
@@ -38,7 +41,7 @@ The words, as shipped:
 about four hours.
 
 **`Decision.` was added before the sweep**, on the first block read. Milestone 55 names a vocabulary
-gap that is explicitly calef's call, and forcing it into `Refused.` would have been a lie in the one
+gap that is an architect's call, and forcing it into `Refused.` would have been a lie in the one
 place this gate exists to stop lying. It is not a new tracked form: AGENTS.md already says open
 decisions live in a file rather than in a conversation.
 
@@ -90,5 +93,5 @@ written against them, and the reversibility above decays with each one.
 All 42 pieces of unclaimed work are now proposal files under `design/roadmap/proposals/`, so none of
 them needs a decision to exist. Five are called out in notes/follow-on-work.md as worth promoting
 first, on a stated bar: a claim this project makes rests on it, or a record in the tree is now known
-to be wrong. Promotion is prioritising, which is calef's, and it wants numbers minted at merge rather
+to be wrong. Promotion is prioritising, which is an architect's, and it wants numbers minted at merge rather
 than an answer here.

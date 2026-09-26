@@ -5,6 +5,9 @@ raised: 2026-09-19
 
 # 177. Whether AGENTS.md quotes measured numbers at all
 
+*Amended 2026-09-26: rule text says "an architect" where it said calef, per §217 (every architect
+holds the whole role). Records and quotations keep his name.*
+
 Raised 2026-09-19 by milestone 435 (forty-five milestones are gated on a decision nobody wrote down)'s slice B, which read milestone 350 (the comment ratio AGENTS.md quotes is wrong, and it climbs every week)'s
 `DECISION` gate and found it naming no section. Milestone 234's series produced the evidence and the
 2026-09-03 proposal sweep carried it forward. *(Section number provisional until the merge queue
@@ -69,14 +72,14 @@ reversible: it is a paragraph in a file, and getting it wrong costs an edit.
 The argument is that A and C both keep the tree in the state that produced this section, and B alone
 is not available until the series can answer for all eight. D is the only option that puts the
 numbers on the rung AGENTS.md's own ladder recommends, and the generator change is small and is not
-calef's.
+an architect's.
 
 **Question 7, answered out loud**: yes, this would still be the recommendation if all four options
 cost the same, because the argument is about which rung the figures sit on rather than about effort.
 
 ## What is blocked until this is answered
 
-**Milestone 350.** The one-line edit is calef's either way, since a developer may not edit AGENTS.md,
+**Milestone 350.** The one-line edit is an architect's either way, since a developer may not edit AGENTS.md,
 and the series extension under D is a lane's and could start today.
 
 ## What this does not decide
