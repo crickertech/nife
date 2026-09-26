@@ -2269,6 +2269,10 @@ pub fn schedule() {
         #[cfg(any(test, feature = "cycle_counter_grant"))]
         install_cycle_counter_grant(next_cycle_counter);
 
+        // Counted before the switch, for `vmstat`'s `cs` column (milestone 126): one load and one
+        // add on this core's own cache line of the machine statistics page.
+        crate::machine_statistics::context_switch();
+
         // And the register file the two threads are about to share a core over (milestone 447).
         // This is beside `switch_to` rather than inside it because the two save different
         // quantities for different reasons: `switch_to` saves what a *function call* may destroy,
@@ -2285,10 +2289,6 @@ pub fn schedule() {
         //
         // This call does not return here. It returns *in another thread*, at the point where
         // that thread last called `switch_to`. We come back only when somebody switches to us.
-        //
-        // Counted first, for `vmstat`'s `cs` column (milestone 126): one load and one add on this
-        // core's own cache line of the machine statistics page.
-        crate::machine_statistics::context_switch();
         unsafe { switch_to(prev_slot, next_ctx) };
 
         // We are now the incoming thread, resuming. Reap whoever we switched away from, if it had
