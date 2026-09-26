@@ -448,6 +448,17 @@ pub(crate) fn initrd_x86() -> bool {
         blobs.push(("cryptography_exerciser", bytes));
     }
     let mut files: Vec<(&str, &[u8])> = blobs.iter().map(|(n, b)| (*n, b.as_slice())).collect();
+    // The image's package source, on the same terms as aarch64's (see there). Since milestone 198
+    // rung 3a's installer the progenitor reads it for `package install`, so x86_64 carries one too
+    // (§19 (architectural parity is a tenet)); no fetch test reads it here, because this runner attaches no network.
+    let catalogue = match crate::package::image_catalogue("x86_64") {
+        Ok(catalogue) => catalogue,
+        Err(complaint) => {
+            eprintln!("initrd-x86: the image's package source: {complaint}");
+            return false;
+        }
+    };
+    files.push((package_archive::CATALOGUE, catalogue.as_bytes()));
     // The measurement table (milestone 104), on the same terms as the other two: last, so it
     // measures everything above it, and vouched for by the kernel's trust root so the progenitor's refusals
     // mean something. Parity is the point (§19): the same table, the same parser, the same policy.

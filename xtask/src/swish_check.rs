@@ -118,13 +118,27 @@ pub(crate) fn swish_check() -> bool {
     true
 }
 
+/// **What the second boot types** (milestone 198 (a package manager) rung 3a): the installed
+/// program still runs after a reboot, a removal makes it unrunnable without deleting it, and a
+/// rollback makes it runnable again. The disk is the only thing the first boot hands this one.
+const SWISH_CHECK_AFTER_REBOOT: [(&str, &[&str]); 5] = [
+    ("packages/uptime/0.1.0/uptime", &["up "]),
+    ("package remove uptime", &["removed; generation 2 is live"]),
+    (
+        "packages/uptime/0.1.0/uptime",
+        &["refused: those bytes are not in the activation set"],
+    ),
+    ("package rollback", &["rolled back; generation 1 is live"]),
+    ("packages/uptime/0.1.0/uptime", &["up "]),
+];
+
 /// The text this gate types and what each line must answer. `None` is a line whose answer is
 /// checked by a later one rather than by itself, which is every line that writes a file.
 ///
 /// `hello world` plus the newline `echo` adds is twelve bytes; the append arm is exactly twice
 /// that. The numbers are spelled out here rather than derived because this is a **boot** gate: if
 /// the arithmetic and the boot were both wrong, deriving one from the other would hide it.
-const SWISH_CHECK_SCRIPT: [(&str, &[&str]); 74] = [
+const SWISH_CHECK_SCRIPT: [(&str, &[&str]); 76] = [
     ("echo hello world | wc", &["1 2 12"]),
     ("echo hello world > gate.txt", &[]),
     ("wc < gate.txt", &["1 2 12"]),
@@ -314,11 +328,25 @@ const SWISH_CHECK_SCRIPT: [(&str, &[&str]); 74] = [
     // program was loaded, measured, granted its report endpoint and actually ran at EL0; the exact
     // elapsed time is not asserted because a real boot's timing is not this check's business.
     ("uptime", &["up "]),
-    // **The same program, installed, and run by its bytes** (milestone 198 (a package manager) rung 3a, DECISIONS
-    // §219 (how the shell names an installed program to the spawner) option D). A path, so the shell reads the file into frames and the progenitor hashes its
-    // own copy and finds the digest in the activation set `disk::seed_installed` wrote. `up ` is
-    // the proof it ran: the refusal below prints no such thing.
-    (crate::disk::INSTALLED_UPTIME, &["up "]),
+    // **The installer** (milestone 198 (a package manager) rung 3a, DECISIONS §208 (installing a
+    // package is granting it, and the activation set is versioned)). A package with one byte
+    // flipped is refused by the image's catalogue before anything is written, and nothing is
+    // installed afterwards: the line after it says generation 1, not 2.
+    (
+        "package install downloads/tampered.nifepkg",
+        &["refused: this image's catalogue does not vouch for those bytes; nothing is installed"],
+    ),
+    // The genuine package, whose digest the image's catalogue carries: the progenitor writes the
+    // program under `packages/<stem>/`, writes generation 1, and renames `current` onto it.
+    (
+        "package install downloads/uptime.nifepkg",
+        &["installed; generation 1 is live"],
+    ),
+    // **And what it installed runs, by its bytes** (DECISIONS §219 (how the shell names an
+    // installed program to the spawner) option D). A path, so the shell reads the file into frames
+    // and the progenitor hashes its own copy and finds the digest in the generation just written.
+    // `up ` is the proof it ran: a refusal prints no such thing.
+    ("packages/uptime/0.1.0/uptime", &["up "]),
     // **And bytes nobody installed, refused.** A real program (`unreachable_network_witness`), so
     // what is refused is runnable code, not garbage; the sentence is the progenitor's word for a
     // digest miss, and the witness's own report ("network: refused ...") never appears because
@@ -944,6 +972,15 @@ fn boot_claim_complaint(
 ///   mmio bus, so the progenitor builds no entropy service. [`swish_check_x86_omits`] names the
 ///   lines that need one.
 fn swish_check_leg(arch: &str) -> bool {
+    swish_check_boot(arch, &SWISH_CHECK_SCRIPT, true)
+        && swish_check_boot(arch, &SWISH_CHECK_AFTER_REBOOT, false)
+}
+
+/// **One boot of [`swish_check_leg`]**: build (when `fresh`), boot, type `script`, read the answers.
+/// `fresh` is false for the second boot, which runs against the disk the first one left behind and
+/// builds nothing, because what it proves is that the disk is the only thing carried across
+/// (milestone 198 (a package manager) rung 3a: an installed package survives a reboot).
+fn swish_check_boot(arch: &str, script: &[(&str, &[&str])], fresh: bool) -> bool {
     use std::io::{Read, Write};
     use std::sync::{Arc, Mutex};
     use std::time::{Duration, Instant};
@@ -965,7 +1002,8 @@ fn swish_check_leg(arch: &str) -> bool {
     // disk), then the RedoxFS image, because the runner attaches the disk only when the file is
     // there and `<` and `>` need one.
     let target = if riscv { RISCV_TARGET } else { TARGET };
-    let built = if x86 {
+    let built = !fresh
+        || if x86 {
         // `uefi_image` packs the archive, builds the kernel against it, and stages the loader;
         // the FS server has to exist first so the archive carries it.
         redoxfs_server_build(X86_TARGET) && mkdisk() && mkredoxfs() && uefi_image()
@@ -973,8 +1011,9 @@ fn swish_check_leg(arch: &str) -> bool {
         redoxfs_server_build(RISCV_TARGET) && mkdisk() && mkredoxfs() && initrd_riscv()
     } else {
         redoxfs_server_build(TARGET) && mkredoxfs() && mkdisk() && user()
-    } // After the archive build, whose ELFs it reads: an installed `uptime` and an unvouched
-    // program on the disk, for the two §219 lines in the script (milestone 198 rung 3a).
+    } // After the archive build, whose packages it copies: a package the image's catalogue
+    // vouches for, a tampered copy, and an unvouched program, on the disk for the installer's
+    // lines in the script (milestone 198 rung 3a).
     && crate::disk::seed_installed(arch)
     && (x86
         || run(
@@ -1004,8 +1043,7 @@ fn swish_check_leg(arch: &str) -> bool {
         c.arg(esp_dir());
         c.env(
             "NIFE_UEFI_TIMEOUT",
-            (SWISH_CHECK_BOOT_SECS * 2
-                + SWISH_CHECK_X86_LINE_SECS * (SWISH_CHECK_SCRIPT.len() as u64 + 2))
+            (SWISH_CHECK_BOOT_SECS * 2 + SWISH_CHECK_X86_LINE_SECS * (script.len() as u64 + 2))
                 .to_string(),
         );
         c.env_remove("NIFE_NVME");
@@ -1208,7 +1246,7 @@ fn swish_check_leg(arch: &str) -> bool {
         };
         let mut took: Vec<(&str, Duration)> = Vec::new();
         let mut previous: Option<(&str, Instant)> = None;
-        for (line, _) in SWISH_CHECK_SCRIPT {
+        for &(line, _) in script {
             if !ready {
                 break;
             }
@@ -1282,7 +1320,7 @@ fn swish_check_leg(arch: &str) -> bool {
         // that found either one would read the same answer for both lines and pass a `>>` that had
         // truncated.
         let mut cursor = 0usize;
-        for (line, want) in SWISH_CHECK_SCRIPT {
+        for &(line, want) in script {
             if x86 && swish_check_x86_omits(line).is_some() {
                 continue;
             }
@@ -1411,6 +1449,13 @@ fn swish_check_leg(arch: &str) -> bool {
     let _ = child.wait();
     let _ = reader.join();
 
+    if failed.is_empty() && !fresh {
+        eprintln!(
+            "swish-check ({arch}): rebooted against the same disk, ran the package installed \
+             before the reboot, removed it, was refused it, rolled back, and ran it again"
+        );
+        return true;
+    }
     if failed.is_empty() {
         // The six lines x86_64 omits are six jobs (two `uuid`s, the two `wc`s reading what they
         // wrote, and milestone 590's two `network_echo_client` runs); see
@@ -1418,7 +1463,7 @@ fn swish_check_leg(arch: &str) -> bool {
         // echo runs and `unreachable_network_witness`) and one on x86_64 (the witness).
         let jobs = if x86 { "eighteen" } else { "twenty-four" };
         if x86 {
-            let omitted: Vec<&str> = SWISH_CHECK_SCRIPT
+            let omitted: Vec<&str> = script
                 .iter()
                 .map(|(line, _)| *line)
                 .filter(|line| swish_check_x86_omits(line).is_some())
@@ -1426,8 +1471,8 @@ fn swish_check_leg(arch: &str) -> bool {
             eprintln!(
                 "swish-check (x86_64): booted under OVMF from \\EFI\\BOOT\\BOOTX64.EFI; ran {} \
                  of {} lines, omitting {}: {:?}",
-                SWISH_CHECK_SCRIPT.len() - omitted.len(),
-                SWISH_CHECK_SCRIPT.len(),
+                script.len() - omitted.len(),
+                script.len(),
                 omitted.len(),
                 omitted,
             );
