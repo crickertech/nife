@@ -563,6 +563,12 @@ static KERNEL_CHUNK_RENDEZVOUS: core::sync::atomic::AtomicUsize =
 
 /// `(peak live, created on kernel chunks so far)`: see [`PEAK_RENDEZVOUS`]. Printed by the test
 /// suite's closing summary.
+/// TEMPORARY measurement.
+#[allow(dead_code)]
+pub fn live_rendezvous_now() -> usize {
+    IPC_TABLES.lock().as_ref().map_or(0, |s| s.rendezvous_table.len())
+}
+
 #[cfg_attr(not(test), allow(dead_code))] // the closing summary is the only reader
 pub fn rendezvous_pressure() -> (usize, usize) {
     (

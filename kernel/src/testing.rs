@@ -1074,8 +1074,10 @@ impl<T: Fn()> Testable for T {
         // than inside the kernel, so the instruments know nothing about tests.
         let region_peak_before = crate::memory_region::peak_region_count();
         let (rendezvous_peak_before, _) = crate::sched::rendezvous_pressure();
+        let (rv_live_before, rv_k_before) = (crate::sched::live_rendezvous_now(), crate::sched::rendezvous_pressure().1);
         let (frames_low_before, refused_before, _) = crate::memory::allocation_pressure();
         self();
+        print!("[MEASURE rv {rv_live_before}->{} kernel {rv_k_before}->{}] ", crate::sched::live_rendezvous_now(), crate::sched::rendezvous_pressure().1);
         let mark = |ptr: &AtomicPtr<u8>, len: &AtomicUsize| {
             ptr.store(name.as_ptr() as *mut u8, Ordering::Relaxed);
             len.store(name.len(), Ordering::Relaxed);
