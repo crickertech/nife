@@ -1383,6 +1383,20 @@ pub enum Command<'a> {
     /// directory the shell holds exactly as any other designation is. So search cannot widen what
     /// its caller could already reach, which is the property `mdr notes/ipc-naming.md` rests on.
     Apropos(&'a [u8]),
+    /// `package install <path>`, `package remove <program>`, `package rollback`: **an edit to the
+    /// activation set** (milestone 198 (a package manager) rung 3a's installer, DECISIONS §208
+    /// (installing a package is granting it, and the activation set is versioned)).
+    ///
+    /// **A builtin, and a request rather than a program.** Installing writes the table the
+    /// progenitor vouches bytes against, and the progenitor is the one process that both reads that
+    /// table and holds what installing needs (the image's catalogue, the file service with
+    /// `WRITE`), so the shell asks it over the spawn endpoint (`spawnproto::Activation`) the way
+    /// `rm`'s directory grant is asked for. An installer *program* could not even be told which
+    /// package: there is no argument vector (milestone 205 (how a foreign program is told what to
+    /// do)).
+    ///
+    /// The tail is classified by [`package_verb`]. Name: provisional (2026-09-26).
+    Package(&'a [u8]),
     /// A program invocation: `<prog> [--mem N] [token ...]`. Named `Run` for the act of running a
     /// program, not for a verb on the line; milestone 47 deleted the verb. A first word that is not
     /// a builtin lands here even when no such program exists, and [`plan`] answers
@@ -2154,6 +2168,10 @@ pub fn parse(line: &[u8]) -> Command<'_> {
         // program would have to be handed the store's directory in order to read every shard in it.
         // The operand is a word rather than a path, so `trim` is all the classification it needs.
         b"apropos" => Command::Apropos(trim(rest)),
+        // **An edit to the activation set** (milestone 198 rung 3a). The verb and its operand are
+        // [`package_verb`]'s to classify, so a bare `package` still reaches the shell and is
+        // answered there with what it takes.
+        b"package" => Command::Package(trim(rest)),
         // **`rm` is deliberately not here.** It was a builtin in the commands lane and is a program
         // now (milestone 47's rmdir lane): a builtin runs with the shell's whole endowment, and a
         // destructive loop should take an explicit attenuated grant instead. Since builtins are
@@ -2162,6 +2180,35 @@ pub fn parse(line: &[u8]) -> Command<'_> {
         // Not a builtin, so it is a program invocation, and the whole line (name included) is the
         // grant expression. Whether the program exists is `plan`'s question, not the parser's.
         _ => Command::Run(parse_run(trimmed)),
+    }
+}
+
+/// **What `package` was asked to do** (milestone 198 rung 3a's installer). Provisional words.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum PackageVerb<'a> {
+    /// `package install <path>`: the path names a package file this shell can read.
+    Install(&'a [u8]),
+    /// `package remove <program>`: the name an installed program is recorded under.
+    Remove(&'a [u8]),
+    /// `package rollback`: the generation below the live one becomes live.
+    Rollback,
+    /// Anything else, including a verb with a missing or extra operand. The shell answers it with
+    /// the three forms, and sends nothing.
+    Usage,
+}
+
+/// Classify [`Command::Package`]'s tail. One operand for `install` and `remove`, none for
+/// `rollback`, and a name to remove must fit the sixteen bytes a packed name carries
+/// (`filesystem_protocol::grant::MAX_NAME`), which `activation_set` programs always do.
+pub fn package_verb(tail: &[u8]) -> PackageVerb<'_> {
+    let (verb, rest) = split_first_word(trim(tail));
+    let operand = trim(rest);
+    let one_word = !operand.is_empty() && !operand.iter().any(u8::is_ascii_whitespace);
+    match verb {
+        b"install" if one_word => PackageVerb::Install(operand),
+        b"remove" if one_word && operand.len() <= 16 => PackageVerb::Remove(operand),
+        b"rollback" if operand.is_empty() => PackageVerb::Rollback,
+        _ => PackageVerb::Usage,
     }
 }
 
@@ -3175,6 +3222,40 @@ mod tests {
         // With no operand it is still the builtin, so the shell answers "that verb needs a word"
         // rather than looking for a program nobody has.
         assert_eq!(parse(b"apropos"), Command::Apropos(b""));
+    }
+
+    /// **`package` takes exactly its three forms** (milestone 198 rung 3a). Every malformed line
+    /// is [`PackageVerb::Usage`], so nothing reaches the progenitor that it would have to guess at.
+    #[test]
+    fn package_takes_three_forms_and_nothing_else() {
+        let Command::Package(tail) = parse(b"package install  downloads/uptime.nifepkg ") else {
+            panic!("package is a builtin");
+        };
+        assert_eq!(
+            package_verb(tail),
+            PackageVerb::Install(b"downloads/uptime.nifepkg")
+        );
+        assert_eq!(
+            package_verb(b"remove uptime"),
+            PackageVerb::Remove(b"uptime")
+        );
+        assert_eq!(package_verb(b"rollback"), PackageVerb::Rollback);
+        for bad in [
+            &b""[..],
+            b"install",
+            b"install a b",
+            b"remove",
+            b"remove a-name-longer-than-sixteen",
+            b"rollback 3",
+            b"upgrade uptime",
+        ] {
+            assert_eq!(
+                package_verb(bad),
+                PackageVerb::Usage,
+                "{:?}",
+                core::str::from_utf8(bad)
+            );
+        }
         // **And `rm` is a program**, which is the whole of milestone 47's rmdir lane at this level.
         // A builtin would have shadowed the name, so this line is also the check that it no longer
         // does; the manifest is what decides what the operand grants.

@@ -805,6 +805,9 @@ pub fn write_help(out: &mut dyn FnMut(&[u8])) {
     out(
         b"  apropos <word>          name the installed pages that mention it (it grants nothing)\n",
     );
+    out(b"  package install <file>  install the program of a package this image vouches for\n");
+    out(b"  package remove <prog>   a new generation without it; its bytes stay for rollback\n");
+    out(b"  package rollback        make the generation before the live one live again\n");
     out(b"  rm [-rfv] <path>        a PROGRAM, granted the directory holding what you name\n");
     // Two spaces rather than the column the rest of this block keeps: these two names run past the
     // description column (26), so aligning them would leave no separator at all. Both were ratified
@@ -899,6 +902,46 @@ pub const FAULTED_SENTENCE: &[u8] = b"  that command faulted and was killed befo
 /// rule: the digest was not found, and what would have let it run anyway is a capability, not a
 /// setting. That capability is §219's gate D2, which is not built, so no session holds it.
 pub const UNVOUCHED_SENTENCE: &[u8] = b"  refused: those bytes are not in the activation set, and running unvouched bytes needs a capability this session does not hold\n";
+
+/// **What `package` says about an edit to the activation set** (milestone 198 (a package manager)
+/// rung 3a's installer). `status` and `live` are the progenitor's reply
+/// (`spawnproto::activation_reply`). Every answer names the generation live afterwards, because
+/// after a refusal that is still the fact a person needs: nothing changed, and this is what is in
+/// force.
+pub fn write_activation(
+    verb: grant_plan::PackageVerb<'_>,
+    status: spawnproto::ActivationStatus,
+    live: u64,
+    out: &mut dyn FnMut(&[u8]),
+) {
+    use grant_plan::PackageVerb as V;
+    use spawnproto::ActivationStatus as S;
+    let said: &[u8] = match (status, verb) {
+        (S::Done, V::Install(_)) => b"  installed",
+        (S::Done, V::Remove(_)) => b"  removed",
+        (S::Done, _) => b"  rolled back",
+        (S::NotCatalogued, _) => {
+            b"  refused: this image's catalogue does not vouch for those bytes"
+        }
+        (S::NoProgram, _) => b"  refused: that package carries no program named after it",
+        (S::NotInstalled, _) => b"  refused: no program of that name is in the live generation",
+        (S::NoEarlier, _) => b"  refused: there is no generation before the live one",
+        (S::StoreFailed, _) => b"  could not write the activation set",
+        (S::Unknown, _) => b"  the progenitor could not take that request",
+    };
+    out(said);
+    if live == 0 {
+        out(b"; nothing is installed\n");
+    } else {
+        out(b"; generation ");
+        write_num(live, out);
+        out(b" is live\n");
+    }
+}
+
+/// What a malformed `package` line is answered with, sending nothing.
+pub const PACKAGE_USAGE: &[u8] =
+    b"  package install <file> | package remove <program> | package rollback\n";
 
 /// Report what the spawned program did, in terms of the grant it was given.
 pub fn write_outcome(e: &Endowment, answer: u64, out: &mut dyn FnMut(&[u8])) {
@@ -1405,6 +1448,26 @@ mod tests {
         let mut buf: Vec<u8> = Vec::new();
         f(&mut |b| buf.extend_from_slice(b));
         String::from_utf8(buf).expect("the shell writes ASCII")
+    }
+
+    /// **Every activation answer names what is live afterwards** (milestone 198 rung 3a), and a
+    /// refusal says nothing changed in words distinct from a success.
+    #[test]
+    fn an_activation_answer_says_what_is_live() {
+        use grant_plan::PackageVerb as V;
+        use spawnproto::ActivationStatus as S;
+        assert_eq!(
+            shown(|o| write_activation(V::Install(b"x"), S::Done, 2, o)),
+            "  installed; generation 2 is live\n"
+        );
+        assert_eq!(
+            shown(|o| write_activation(V::Rollback, S::Done, 1, o)),
+            "  rolled back; generation 1 is live\n"
+        );
+        assert_eq!(
+            shown(|o| write_activation(V::Install(b"x"), S::NotCatalogued, 0, o)),
+            "  refused: this image's catalogue does not vouch for those bytes; nothing is installed\n"
+        );
     }
 
     fn spec_of(line: &[u8]) -> RunSpec<'_> {

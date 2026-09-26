@@ -392,6 +392,109 @@ impl<'a> Package<'a> {
     }
 }
 
+/// The longest `name-version-architecture` stem a package can have: three [`NAME_LEN`] fields and
+/// two hyphens.
+pub const STEM_LEN: usize = NAME_LEN * 3 + 2;
+
+/// **A package the image vouches for, reduced to what installing it needs** (milestone 198 (a
+/// package manager) rung 3a's installer): the program a person will run, where it came from, and
+/// its bytes and digest.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Installable<'a> {
+    /// The program's name, which is the package's name (see [`installable`]).
+    pub program: &'a str,
+    /// The executable member's bytes.
+    pub bytes: &'a [u8],
+    /// Their SHA-256, as the table of contents carries it and [`installable`] checked it. This is
+    /// the digest the activation set records and the spawner computes (DECISIONS §219 (how the
+    /// shell names an installed program to the spawner) option D).
+    pub digest: Digest,
+}
+
+/// Why [`installable`] refused a package. Each is a different thing a person should be told.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Refusal {
+    /// The bytes are not a package this parser can read.
+    Unreadable,
+    /// The catalogue has no line for this package's stem, or has one and these bytes do not hash to
+    /// it. One refusal for both, because to the installer they are one fact: the image does not
+    /// vouch for these bytes (DECISIONS §195 (a reviewed recipe vouches for a package)).
+    NotCatalogued,
+    /// The package carries no member named after itself, so there is no program to install.
+    NoProgram,
+    /// The program member does not hash to the digest its own table of contents claims. Only a
+    /// catalogued package can reach this, so it means the catalogue vouched for a file the producer
+    /// would never have written.
+    MemberMismatch,
+}
+
+/// **The installer's whole decision, on bytes alone** (milestone 198 rung 3a): may this package be
+/// installed, and if so, what is installed?
+///
+/// In order, and the order is the argument:
+///
+/// 1. The header is parsed, because the stem the catalogue is keyed by is written in it. That is
+///    hostile input reaching [`Package::parse`] before any digest is checked, which is what that
+///    function's fuzz target and Kani harnesses exist for.
+/// 2. **The whole file's SHA-256 must be the catalogue's line for that stem.** The catalogue is the
+///    image's own ([`CATALOGUE`]), measured with every other archive entry, so this is DECISIONS §195's
+///    "the image's measured table becomes the first source" taken literally: a person cannot install
+///    what the image does not vouch for, whatever file they point at.
+/// 3. The member named after the package is the program. **That convention is this function's and
+///    is provisional**: a recipe's `program` line names a member, and nothing in the format marks
+///    which member is executable. A package whose program has another name, or that carries two,
+///    installs nothing. Where a program's manifest travels is DECISIONS §197 (a package is one
+///    archive file)'s open question, and this does not answer it.
+/// 4. Its bytes are checked against the table of contents' digest, so what is recorded is a digest
+///    this installer computed rather than one it was told.
+///
+/// `stem` is scratch for the `name-version-architecture` key; the caller reads it back with
+/// [`Package::stem`] when it needs the same string.
+pub fn installable<'a>(catalogue: &str, bytes: &'a [u8]) -> Result<Installable<'a>, Refusal> {
+    let package = Package::parse(bytes).map_err(|_| Refusal::Unreadable)?;
+    let mut stem = [0u8; STEM_LEN];
+    let expected = measured_boot::expected_in_manifest(catalogue, package.stem(&mut stem))
+        .ok_or(Refusal::NotCatalogued)?;
+    if sha256(bytes) != expected {
+        return Err(Refusal::NotCatalogued);
+    }
+    let program = package.name();
+    let index = package.index_of(program).ok_or(Refusal::NoProgram)?;
+    let (Some(member), Some(digest)) = (package.member(index), package.member_digest(index)) else {
+        return Err(Refusal::NoProgram);
+    };
+    if sha256(member) != digest {
+        return Err(Refusal::MemberMismatch);
+    }
+    Ok(Installable {
+        program,
+        bytes: member,
+        digest,
+    })
+}
+
+impl<'a> Package<'a> {
+    /// **The package's `name-version-architecture` stem**, the key its catalogue line and its file
+    /// name share, composed into `out`.
+    pub fn stem<'b>(&self, out: &'b mut [u8; STEM_LEN]) -> &'b str {
+        let mut at = 0;
+        for (i, part) in [self.name(), self.version(), self.architecture()]
+            .iter()
+            .enumerate()
+        {
+            if i > 0 {
+                out[at] = b'-';
+                at += 1;
+            }
+            out[at..at + part.len()].copy_from_slice(part.as_bytes());
+            at += part.len();
+        }
+        // Three fields read as UTF-8 and two ASCII hyphens: this cannot fail, and `unwrap_or`
+        // keeps the path panic-free.
+        core::str::from_utf8(&out[..at]).unwrap_or("")
+    }
+}
+
 /// Read a NUL-padded name of [`NAME_LEN`] bytes at `at`.
 ///
 /// Invalid UTF-8 comes back as the empty string rather than as an error, which is deliberate and is
@@ -625,6 +728,68 @@ mod tests {
         let package = Package::parse(&file).unwrap();
         assert_eq!(package.verify(), Err(VerifyError { index: 1 }));
         package.verify_member(0).unwrap();
+    }
+
+    fn catalogue_for(file: &[u8]) -> std::string::String {
+        let hex = measured_boot::hex(&sha256(file));
+        std::format!(
+            "other-1.0-aarch64 {}\nuptime-0.1.0-aarch64 {}\n",
+            "0".repeat(64),
+            core::str::from_utf8(&hex).unwrap()
+        )
+    }
+
+    /// **The installer installs the program a catalogue vouches for, and nothing else** (milestone
+    /// 198 rung 3a). The accepted case first, so each refusal below is a change of one thing.
+    #[test]
+    fn a_catalogued_package_yields_its_program_and_that_programs_digest() {
+        let members: [(&str, &[u8]); 2] = [("uptime", b"\x7fELF"), ("uptime.licence", b"MIT")];
+        let file = written(&members);
+        let got = installable(&catalogue_for(&file), &file).unwrap();
+        assert_eq!(got.program, "uptime");
+        assert_eq!(got.bytes, b"\x7fELF");
+        assert_eq!(got.digest, sha256(b"\x7fELF"));
+        let mut stem = [0u8; STEM_LEN];
+        assert_eq!(
+            Package::parse(&file).unwrap().stem(&mut stem),
+            "uptime-0.1.0-aarch64"
+        );
+    }
+
+    /// **One flipped byte anywhere is refused by the catalogue**, before the member is looked at:
+    /// the flip is in the licence, which no member check of the program would ever read.
+    #[test]
+    fn a_byte_the_catalogue_did_not_vouch_for_is_refused() {
+        let members: [(&str, &[u8]); 2] = [("uptime", b"\x7fELF"), ("uptime.licence", b"MIT")];
+        let file = written(&members);
+        let catalogue = catalogue_for(&file);
+        let mut tampered = file.clone();
+        let last = tampered.len() - 1;
+        tampered[last] ^= 1;
+        assert_eq!(
+            installable(&catalogue, &tampered),
+            Err(Refusal::NotCatalogued)
+        );
+        // And a catalogue without the stem vouches for nothing, however good the bytes are.
+        assert_eq!(
+            installable("uptime-0.2.0-aarch64 00", &file),
+            Err(Refusal::NotCatalogued)
+        );
+        assert_eq!(
+            installable(&catalogue, b"garbage"),
+            Err(Refusal::Unreadable)
+        );
+    }
+
+    /// **A vouched package with no member named after it installs nothing**, rather than guessing
+    /// which member is the program.
+    #[test]
+    fn a_package_with_no_program_of_its_own_name_is_refused() {
+        let file = written(&[("uptime.licence", b"MIT")]);
+        assert_eq!(
+            installable(&catalogue_for(&file), &file),
+            Err(Refusal::NoProgram)
+        );
     }
 
     #[test]
