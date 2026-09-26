@@ -14,6 +14,8 @@ chosen after the results are seen.
   what two runs per cell can and cannot carry.
 - [Protocol, `open-lane-qwen-next`, 2026-09-26](model-comparison/2026-09-26-qwen-next-protocol.md): a
   rented model against Opus 5.5 and Sonnet 5, one task per role, fixed before the first run.
+- [Results, `open-lane-qwen-next`, 2026-09-26](model-comparison/2026-09-26-qwen-next-results.md):
+  it fails the screen for every role, for USD 4.35.
 
 ## BUGS
 
