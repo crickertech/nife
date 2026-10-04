@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Which mutants of the code a standing Kani harness covers does the proof kill?
 
-The measurement behind milestone 741 (provisional: does a standing proof notice a regression), for
-fatal risk 2 (the proofs prove trivia). A harness that kills no mutant of the code it claims to cover
+The measurement behind milestone 741 (does a standing proof notice a regression), whose number is
+provisional, for fatal risk 2 (the proofs prove trivia). A harness that kills no mutant of the code it claims to cover
 proves nothing a regression could break. Name provisional (2026-10-04, UTC); naming is an
 architect's.
 
