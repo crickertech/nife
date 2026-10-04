@@ -1,0 +1,146 @@
+name: kani reach
+
+# **Does a standing proof notice a regression in the code it covers?** Milestone 741 (provisional),
+# for fatal risk 2. cargo-mutants lists the mutants of each package below, and every mutant is proved
+# with `cargo kani`; a harness that goes FAILED on a mutant kills it. The join against the weekly
+# mutation census is what says whether the tests kill it too. helpers/kani_reach.py holds the method
+# and its caveats; notes/kani-reach-2026-10-04.md holds the numbers.
+#
+# A measurement, not a gate, and on demand only: one Kani compile per mutant is hours of CPU. Run it
+# here rather than on a laptop, per AGENTS.md's memory ceiling (never a mutation sweep beside lanes).
+#
+# `ubuntu-24.04-arm`, because `cargo kani -p kernel` compiles the host's `arch/` subtree, so the
+# kernel row proves `arch/aarch64/` here as it does on patagonia. The riscv64 and x86_64 kernel
+# harnesses are not in this measurement; see the note.
+
+on:
+  workflow_dispatch:
+    inputs:
+      packages:
+        description: "space-separated packages (rows of the case table below)"
+        default: "nifefs elf kernel"
+  push:
+    branches: [lane/kani-reach]
+    paths: [.github/workflows/kani-reach.yml, helpers/kani_reach.py]
+
+permissions:
+  contents: read
+  # The report joins the 2026-10-03 census, which is another run's artifacts.
+  actions: read
+
+concurrency:
+  group: kani-reach-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  plan:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install the pinned toolchain
+        run: rustup show active-toolchain || rustup toolchain install
+      - name: Read the pinned cargo-mutants version
+        id: mutants
+        run: echo "version=$(cat .cargo-mutants-version)" >> "$GITHUB_OUTPUT"
+      - uses: taiki-e/install-action@v2.87.20
+        with:
+          tool: cargo-mutants@${{ steps.mutants.outputs.version }}
+      - name: Plan each package
+        id: plan
+        env:
+          PACKAGES: ${{ github.event.inputs.packages || 'nifefs elf kernel' }}
+        run: |
+          mkdir -p plans
+          entries=""
+          for p in $PACKAGES; do
+            extra=""; shards=1; flags=""
+            case "$p" in
+              kernel)
+                # The same flags script/verify passes, the aarch64 harnesses only (this host's
+                # `arch/`), and the mutants of the files those harnesses live in.
+                files=$(git grep -lF '#[kani::proof]' -- 'kernel/src' | grep -v -E 'arch/(riscv64|x86_64)/')
+                for f in $files; do extra="$extra --file $f"; done
+                python3 helpers/kani_reach.py plan --package kernel \
+                  --kani-args "-Z unstable-options --ignore-global-asm -Z stubbing" \
+                  --harness-re '^(?!arch::(riscv64|x86_64)::)' $extra --out plans/kernel.json
+                # Every kernel mutant costs a whole kernel compile under Kani, so only the mutants
+                # some harness's computed reach includes are proved; the pure crates prove every
+                # mutant, and that is where a kill outside the computed reach would show.
+                flags="--reached-only"; shards=2 ;;
+              *)
+                python3 helpers/kani_reach.py plan --package "$p" --out "plans/$p.json"
+                n=$(python3 -c "import json;print(len(json.load(open('plans/$p.json'))['mutants']))")
+                shards=$(( (n + 59) / 60 )) ;;
+            esac
+            for k in $(seq 0 $((shards - 1))); do
+              entries="$entries{\"package\":\"$p\",\"shard\":\"$k/$shards\",\"tag\":\"$k-$shards\",\"flags\":\"$flags\"},"
+            done
+          done
+          echo "matrix={\"include\":[${entries%,}]}" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: plans
+          path: plans/
+
+  prove:
+    needs: plan
+    name: "prove ${{ matrix.package }} ${{ matrix.shard }}"
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 330
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: Swatinem/rust-cache@v2
+      - name: Install Kani
+        run: |
+          cargo install --locked kani-verifier
+          cargo kani setup
+      - uses: actions/download-artifact@v8
+        with:
+          name: plans
+          path: plans
+      - name: Prove every mutant in this shard
+        run: |
+          python3 helpers/kani_reach.py run --plan plans/${{ matrix.package }}.json \
+            --shard ${{ matrix.shard }} --timeout 60 ${{ matrix.flags }} \
+            --out results-${{ matrix.package }}-${{ matrix.tag }}.jsonl
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: results-${{ matrix.package }}-${{ matrix.tag }}
+          path: results-*.jsonl
+
+  report:
+    needs: prove
+    if: always()
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          path: in
+      - name: Report each package against the 2026-10-03 census
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # The census whose survivors this joins: run 37108924347, the 2026-10-03 census.
+          gh run download 37108924347 -R "$GITHUB_REPOSITORY" -D census || echo "census unavailable"
+          mkdir -p out
+          for plan in in/plans/*.json; do
+            p=$(basename "$plan" .json)
+            res=$(ls in/results-"$p"-*/*.jsonl 2>/dev/null || true)
+            [ -n "$res" ] || { echo "no results for $p"; continue; }
+            python3 helpers/kani_reach.py report --plan "$plan" --results $res --census census \
+              --out "out/$p.md"
+            sed '/^| mutant |/,$d' "out/$p.md" >> "$GITHUB_STEP_SUMMARY"
+          done
+      - uses: actions/upload-artifact@v7
+        with:
+          name: report
+          path: out/
