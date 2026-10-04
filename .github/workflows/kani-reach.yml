@@ -17,8 +17,11 @@ on:
   workflow_dispatch:
     inputs:
       packages:
-        description: "space-separated packages (rows of the case table below)"
+        description: "space-separated package[:shards] list"
         default: "nifefs elf kernel"
+      flags:
+        description: "flags for kani_reach.py run; empty means --reached-only (the pilot ran without it)"
+        default: "--reached-only"
   push:
     branches: [lane/kani-reach]
     paths: [.github/workflows/kani-reach.yml, helpers/kani_reach.py]
@@ -51,12 +54,17 @@ jobs:
       - name: Plan each package
         id: plan
         env:
-          PACKAGES: ${{ github.event.inputs.packages || 'nifefs elf kernel' }}
+          # The 2026-10-04 scaled run: every row of script/verify's table but the three the pilot
+          # measured (nifefs, elf, kernel) and the two whose cost was estimated at 90 CPU-hours
+          # between them (glob, calendar); shard counts from that estimate. See the note.
+          PACKAGES: ${{ github.event.inputs.packages || 'capability paging:2 memory_regions page_frames device_tree_blob inter_process_communication generational_table intrusive_fifo address_space_identifier manifest_note:4 package_archive pci non_volatile_memory_express direct_memory_access_validator:4 network_time_protocol globally_unique_identifier_partition_table:3 filesystem_protocol subtree_scope:2 credential_protocol component_plan timetable jh7110_entropy machine_discovery:8' }}
+          FLAGS: ${{ github.event.inputs.flags || '--reached-only' }}
         run: |
           mkdir -p plans
           entries=""
-          for p in $PACKAGES; do
-            extra=""; shards=1; flags=""
+          for spec in $PACKAGES; do
+            p="${spec%%:*}"; want="${spec#*:}"; [ "$want" = "$spec" ] && want=1
+            extra=""; shards=1; flags="$FLAGS"
             case "$p" in
               kernel)
                 # The same flags script/verify passes, the aarch64 harnesses only (this host's
@@ -66,14 +74,13 @@ jobs:
                 python3 helpers/kani_reach.py plan --package kernel \
                   --kani-args "-Z unstable-options --ignore-global-asm -Z stubbing" \
                   --harness-re '^(?!arch::(riscv64|x86_64)::)' $extra --out plans/kernel.json
-                # Every kernel mutant costs a whole kernel compile under Kani, so only the mutants
-                # some harness's computed reach includes are proved; the pure crates prove every
-                # mutant, and that is where a kill outside the computed reach would show.
+                # Only the mutants some harness's computed reach includes are proved. The pilot
+                # proved every nifefs and elf mutant against every harness, which is where a kill
+                # outside the computed reach showed (8 of elf's 185 viable mutants).
                 flags="--reached-only"; shards=2 ;;
               *)
                 python3 helpers/kani_reach.py plan --package "$p" --out "plans/$p.json"
-                n=$(python3 -c "import json;print(len(json.load(open('plans/$p.json'))['mutants']))")
-                shards=$(( (n + 59) / 60 )) ;;
+                shards=$want ;;
             esac
             for k in $(seq 0 $((shards - 1))); do
               entries="$entries{\"package\":\"$p\",\"shard\":\"$k/$shards\",\"tag\":\"$k-$shards\",\"flags\":\"$flags\"},"
